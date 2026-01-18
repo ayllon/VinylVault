@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "discografia"
+version = "0.1.0"
+description = "Discografia project"
+requires-python = ">=3.12"
+dependencies = [
+    "tqdm>=4.0.0",
+    "Pillow>=9.0.0",
+]
+
+[project.scripts]
+mdb2sqlite = "mdb2sqlite:main"
+
+[tool.setuptools]
+py-modules = ["mdb2sqlite"]
