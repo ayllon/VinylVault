@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import Select from "react-select";
 import "./App.css";
 
 interface RecordData {
@@ -35,14 +36,6 @@ function App() {
   const [groups, setGroups] = useState<string[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
   const [formatos, setFormatos] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
-  const [filteredFormatos, setFilteredFormatos] = useState<string[]>([]);
-  const [showGrupoSuggestions, setShowGrupoSuggestions] =
-    useState<boolean>(false);
-  const [filteredGroups, setFilteredGroups] = useState<string[]>([]);
-  const [showDiscoSuggestions, setShowDiscoSuggestions] =
-    useState<boolean>(false);
-  const [filteredTitles, setFilteredTitles] = useState<string[]>([]);
 
   const [searchGrupo, setSearchGrupo] = useState<string>("");
   const [searchDisco, setSearchDisco] = useState<string>("");
@@ -112,19 +105,21 @@ function App() {
     }
   }
 
-  async function handleSearchClick() {
+  async function handleSearchClick(column?: string, value?: string) {
     if (!dbPath) return;
     try {
-      let col = "";
-      let val = "";
-      if (searchGrupo) {
-        col = "GRUPO";
-        val = searchGrupo;
-      } else if (searchDisco) {
-        col = "TITULO";
-        val = searchDisco;
-      } else {
-        return;
+      let col = column;
+      let val = value;
+      if (!col && !val) {
+        if (searchGrupo) {
+          col = "GRUPO";
+          val = searchGrupo;
+        } else if (searchDisco) {
+          col = "TITULO";
+          val = searchDisco;
+        } else {
+          return;
+        }
       }
 
       const offset = await invoke<number>("find_record_offset", {
@@ -271,92 +266,56 @@ function App() {
         </div>
         <div className="field-group formato">
           <label>Formato:</label>
-          <div style={{ position: "relative", zIndex: 100 }}>
-            <input
-              type="text"
-              value={currentRecord?.formato || ""}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (currentRecord) {
-                  setCurrentRecord({
-                    ...currentRecord,
-                    formato: value,
-                  });
-                }
-                // Filter suggestions as user types
-                if (value.length > 0) {
-                  const filtered = formatos.filter((f) =>
-                    f.toLowerCase().includes(value.toLowerCase()),
-                  );
-                  setFilteredFormatos(filtered);
-                  setShowSuggestions(true);
-                } else {
-                  setShowSuggestions(false);
-                }
-              }}
-              onBlur={() => {
+          <Select
+            options={formatos.map((f) => ({ value: f, label: f }))}
+            value={
+              currentRecord?.formato
+                ? { value: currentRecord.formato, label: currentRecord.formato }
+                : null
+            }
+            onChange={(option) => {
+              if (currentRecord) {
+                setCurrentRecord({
+                  ...currentRecord,
+                  formato: option?.value || "",
+                });
                 handleSave();
-                // Delay hiding suggestions to allow click on suggestion
-                setTimeout(() => setShowSuggestions(false), 200);
-              }}
-              onFocus={() => {
-                if (
-                  currentRecord?.formato &&
-                  currentRecord.formato.length > 0
-                ) {
-                  const filtered = formatos.filter((f) =>
-                    f
-                      .toLowerCase()
-                      .includes(currentRecord.formato!.toLowerCase()),
-                  );
-                  setFilteredFormatos(filtered);
-                  setShowSuggestions(true);
-                }
-              }}
-            />
-            {showSuggestions && filteredFormatos.length > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  width: "100%",
-                  maxHeight: "200px",
-                  overflowY: "auto",
-                  backgroundColor: "white",
+              }
+            }}
+            isSearchable
+            placeholder="Select or type formato..."
+            styles={{
+              control: (base: any) => ({
+                ...base,
+                border: "1px solid #cbd5e0",
+                boxShadow: "none",
+                ":hover": {
                   border: "1px solid #cbd5e0",
-                  borderTop: "none",
-                  zIndex: 10000,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                }}
-              >
-                {filteredFormatos.map((f, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: "8px 10px",
-                      cursor: "pointer",
-                      backgroundColor:
-                        currentRecord?.formato === f ? "#edf2f7" : "white",
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (currentRecord) {
-                        setCurrentRecord({
-                          ...currentRecord,
-                          formato: f,
-                        });
-                        handleSave();
-                      }
-                      setShowSuggestions(false);
-                    }}
-                  >
-                    {f}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                },
+              }),
+              menu: (base: any) => ({
+                ...base,
+                zIndex: 10000,
+              }),
+              menuPortal: (base: any) => ({
+                ...base,
+                zIndex: 10000,
+              }),
+            }}
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            menuPlacement="auto"
+            menuShouldBlockScroll={true}
+            theme={(theme: any) => ({
+              ...theme,
+              borderRadius: 4,
+              colors: {
+                ...theme.colors,
+                primary: "#3182ce",
+                primary25: "#ebf8ff",
+              },
+            })}
+          />
         </div>
 
         <div className="field-group observ">
@@ -433,166 +392,128 @@ function App() {
 
         <div className="action-bar">
           <div className="search-boxes">
-            <div className="search-box" style={{ flex: 2, zIndex: 100 }}>
+            <div className="search-box" style={{ flex: 2 }}>
               <label>Buscar por grupo</label>
-              <div style={{ display: "flex", position: "relative" }}>
-                <input
-                  type="text"
-                  value={searchGrupo}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSearchGrupo(value);
-                    setSearchDisco("");
-                    // Filter groups as user types
-                    if (value.length > 0) {
-                      const filtered = groups.filter((g) =>
-                        g.toLowerCase().includes(value.toLowerCase()),
-                      );
-                      setFilteredGroups(filtered);
-                      setShowGrupoSuggestions(true);
-                    } else {
-                      setShowGrupoSuggestions(false);
-                    }
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => setShowGrupoSuggestions(false), 200);
-                  }}
-                  onFocus={() => {
-                    if (searchGrupo.length > 0) {
-                      const filtered = groups.filter((g) =>
-                        g.toLowerCase().includes(searchGrupo.toLowerCase()),
-                      );
-                      setFilteredGroups(filtered);
-                      setShowGrupoSuggestions(true);
-                    }
-                  }}
-                  style={{ flex: 1 }}
-                  placeholder="Type to search groups..."
-                />
-                {showGrupoSuggestions && filteredGroups.length > 0 && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      width: "100%",
-                      maxHeight: "200px",
-                      overflowY: "auto",
-                      backgroundColor: "white",
+              <Select
+                options={groups.map((g) => ({ value: g, label: g }))}
+                value={
+                  searchGrupo
+                    ? { value: searchGrupo, label: searchGrupo }
+                    : null
+                }
+                onChange={(option) => {
+                  const newValue = option?.value || "";
+                  setSearchGrupo(newValue);
+                  setSearchDisco("");
+                  if (newValue) {
+                    // Search immediately with the selected value
+                    handleSearchClick("GRUPO", newValue);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchGrupo) {
+                    handleSearchClick("GRUPO", searchGrupo);
+                  }
+                }}
+                isSearchable
+                isClearable
+                placeholder="Search groups..."
+                styles={{
+                  control: (base: any) => ({
+                    ...base,
+                    border: "1px solid #cbd5e0",
+                    boxShadow: "none",
+                    ":hover": {
                       border: "1px solid #cbd5e0",
-                      borderTop: "none",
-                      zIndex: 10000,
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                    }}
-                  >
-                    {filteredGroups.map((g, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          padding: "8px 10px",
-                          cursor: "pointer",
-                          backgroundColor:
-                            searchGrupo === g ? "#edf2f7" : "white",
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSearchGrupo(g);
-                          setSearchDisco("");
-                          setShowGrupoSuggestions(false);
-                        }}
-                      >
-                        {g}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    },
+                  }),
+                  menu: (base: any) => ({
+                    ...base,
+                    zIndex: 10000,
+                  }),
+                  menuPortal: (base: any) => ({
+                    ...base,
+                    zIndex: 10000,
+                  }),
+                }}
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                menuPlacement="auto"
+                menuShouldBlockScroll={true}
+                theme={(theme: any) => ({
+                  ...theme,
+                  borderRadius: 4,
+                  colors: {
+                    ...theme.colors,
+                    primary: "#3182ce",
+                    primary25: "#ebf8ff",
+                  },
+                })}
+              />
             </div>
 
-            <div className="search-box" style={{ flex: 2, zIndex: 100 }}>
+            <div className="search-box" style={{ flex: 2 }}>
               <label>Buscar por disco</label>
-              <div style={{ display: "flex", position: "relative" }}>
-                <input
-                  type="text"
-                  value={searchDisco}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSearchDisco(value);
-                    setSearchGrupo("");
-                    // Filter titles as user types
-                    if (value.length > 0) {
-                      const filtered = titles.filter((t) =>
-                        t.toLowerCase().includes(value.toLowerCase()),
-                      );
-                      setFilteredTitles(filtered);
-                      setShowDiscoSuggestions(true);
-                    } else {
-                      setShowDiscoSuggestions(false);
-                    }
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => setShowDiscoSuggestions(false), 200);
-                  }}
-                  onFocus={() => {
-                    if (searchDisco.length > 0) {
-                      const filtered = titles.filter((t) =>
-                        t.toLowerCase().includes(searchDisco.toLowerCase()),
-                      );
-                      setFilteredTitles(filtered);
-                      setShowDiscoSuggestions(true);
-                    }
-                  }}
-                  style={{ flex: 1 }}
-                  placeholder="Type to search discs..."
-                />
-                {showDiscoSuggestions && filteredTitles.length > 0 && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      width: "100%",
-                      maxHeight: "200px",
-                      overflowY: "auto",
-                      backgroundColor: "white",
+              <Select
+                options={titles.map((t) => ({ value: t, label: t }))}
+                value={
+                  searchDisco
+                    ? { value: searchDisco, label: searchDisco }
+                    : null
+                }
+                onChange={(option) => {
+                  const newValue = option?.value || "";
+                  setSearchDisco(newValue);
+                  setSearchGrupo("");
+                  if (newValue) {
+                    // Search immediately with the selected value
+                    handleSearchClick("TITULO", newValue);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchDisco) {
+                    handleSearchClick("TITULO", searchDisco);
+                  }
+                }}
+                isSearchable
+                isClearable
+                placeholder="Search discs..."
+                styles={{
+                  control: (base: any) => ({
+                    ...base,
+                    border: "1px solid #cbd5e0",
+                    boxShadow: "none",
+                    ":hover": {
                       border: "1px solid #cbd5e0",
-                      borderTop: "none",
-                      zIndex: 10000,
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                    }}
-                  >
-                    {filteredTitles.map((t, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          padding: "8px 10px",
-                          cursor: "pointer",
-                          backgroundColor:
-                            searchDisco === t ? "#edf2f7" : "white",
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSearchDisco(t);
-                          setSearchGrupo("");
-                          setShowDiscoSuggestions(false);
-                        }}
-                      >
-                        {t}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    },
+                  }),
+                  menu: (base: any) => ({
+                    ...base,
+                    zIndex: 10000,
+                  }),
+                  menuPortal: (base: any) => ({
+                    ...base,
+                    zIndex: 10000,
+                  }),
+                }}
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                menuPlacement="auto"
+                menuShouldBlockScroll={true}
+                theme={(theme: any) => ({
+                  ...theme,
+                  borderRadius: 4,
+                  colors: {
+                    ...theme.colors,
+                    primary: "#3182ce",
+                    primary25: "#ebf8ff",
+                  },
+                })}
+              />
             </div>
 
             <div style={{ alignSelf: "flex-end", paddingBottom: "2px" }}>
-              <button
-                className="search-btn"
-                onClick={handleSearchClick}
-                title="Buscar"
-              >
-                🔍
-              </button>
+              {/* Search button removed - search happens automatically on selection */}
             </div>
           </div>
         </div>

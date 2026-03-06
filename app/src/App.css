@@ -94,9 +94,42 @@ body {
     color: #2d3748;
 }
 
-/* Custom autocomplete styling */
-.field-group.formato input {
-    padding-right: 10px;
+/* React Select styling to match app theme */
+.react-select__control {
+    border: 1px solid #cbd5e0 !important;
+    box-shadow: none !important;
+    min-height: 38px !important;
+    border-radius: 4px !important;
+}
+
+.react-select__control--is-focused {
+    border-color: #3182ce !important;
+    box-shadow: 0 0 0 1px #3182ce !important;
+}
+
+.react-select__menu {
+    z-index: 10000 !important;
+    border-radius: 4px !important;
+    border: 1px solid #cbd5e0 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.react-select__option--is-focused {
+    background-color: #ebf8ff !important;
+}
+
+.react-select__option--is-selected {
+    background-color: #3182ce !important;
+    color: white !important;
+}
+
+/* Search box React Select adjustments */
+.search-box .react-select__control {
+    min-height: 34px !important;
+}
+
+.search-box .react-select__value-container {
+    padding: 0 8px !important;
 }
 
 .field-group input:focus,
@@ -105,6 +138,18 @@ body {
     outline: none;
     border-color: #3182ce;
     box-shadow: 0 0 0 1px #3182ce;
+}
+
+/* React Select menu portal positioning */
+.react-select-menu-portal {
+    position: fixed !important;
+    z-index: 10000 !important;
+}
+
+.react-select-menu-portal .react-select__menu {
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+    min-width: 100% !important;
 }
 
 .field-group textarea {
