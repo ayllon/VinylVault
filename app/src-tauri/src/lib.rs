@@ -114,16 +114,6 @@ fn find_record_offset(column: String, value: String, db_path: String) -> Result<
 }
 
 #[tauri::command]
-fn sanitize_key(title: String) -> String {
-    // Basic Python sanitize_key emulation
-    // In Rust, we could use unicode-normalization crate, but for UI rendering the frontend
-    // just needs the path. We'll do it in JS directly or let Rust handle it!
-
-    // Actually, doing it in typescript is much easier and doesn't require extra crates.
-    title
-}
-
-#[tauri::command]
 fn add_record(db_path: String) -> Result<u32, String> {
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     conn.execute(
