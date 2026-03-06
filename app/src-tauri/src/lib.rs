@@ -57,7 +57,9 @@ fn get_record(offset: u32, db_path: String) -> Result<Record, String> {
 }
 
 #[tauri::command]
-fn get_groups_and_titles(db_path: String) -> Result<(Vec<String>, Vec<String>), String> {
+fn get_groups_and_titles(
+    db_path: String,
+) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     let mut groups = Vec::new();
@@ -78,7 +80,16 @@ fn get_groups_and_titles(db_path: String) -> Result<(Vec<String>, Vec<String>), 
         }
     }
 
-    Ok((groups, titles))
+    let mut formatos = Vec::new();
+    let mut stmt3 = conn.prepare("SELECT DISTINCT FORMATO FROM discos WHERE FORMATO IS NOT NULL AND FORMATO != '' ORDER BY FORMATO").map_err(|e| e.to_string())?;
+    let mut rows3 = stmt3.query([]).map_err(|e| e.to_string())?;
+    while let Some(row) = rows3.next().map_err(|e| e.to_string())? {
+        if let Ok(f) = row.get::<_, String>(0) {
+            formatos.push(f);
+        }
+    }
+
+    Ok((groups, titles, formatos))
 }
 
 #[tauri::command]
@@ -112,6 +123,38 @@ fn sanitize_key(title: String) -> String {
     title
 }
 
+#[tauri::command]
+fn add_record(db_path: String) -> Result<u32, String> {
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO discos (GRUPO, TITULO) VALUES ('Nuevo Grupo', 'Nuevo Disco')",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    let count: u32 = conn
+        .query_row("SELECT COUNT(*) FROM discos", [], |row| row.get(0))
+        .unwrap_or(1);
+    Ok(count - 1)
+}
+
+#[tauri::command]
+fn update_record(record: Record, db_path: String) -> Result<(), String> {
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE discos SET GRUPO=?1, TITULO=?2, FORMATO=?3, ANIO=?4, ESTILO=?5, PAIS=?6, CANCIONES=?7, CREDITOS=?8, OBSERV=?9 WHERE rowid=?10",
+        rusqlite::params![record.grupo, record.titulo, record.formato, record.anio, record.estilo, record.pais, record.canciones, record.creditos, record.observ, record.id]
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_record(id: i64, db_path: String) -> Result<(), String> {
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM discos WHERE rowid=?1", [id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -122,6 +165,9 @@ pub fn run() {
             get_record,
             get_groups_and_titles,
             find_record_offset,
+            add_record,
+            update_record,
+            delete_record,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

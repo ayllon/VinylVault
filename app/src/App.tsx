@@ -34,6 +34,7 @@ function App() {
 
   const [groups, setGroups] = useState<string[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
+  const [formatos, setFormatos] = useState<string[]>([]);
 
   const [searchGrupo, setSearchGrupo] = useState<string>("");
   const [searchDisco, setSearchDisco] = useState<string>("");
@@ -68,6 +69,7 @@ function App() {
   }
 
   async function loadTotalRecords() {
+    if (!dbPath) return;
     try {
       const total = await invoke<number>("get_total_records", { dbPath });
       setTotalRecords(total);
@@ -77,16 +79,19 @@ function App() {
   }
 
   async function loadComboboxes() {
+    if (!dbPath) return;
     try {
-      const [g, t] = await invoke<[string[], string[]]>("get_groups_and_titles", { dbPath });
+      const [g, t, f] = await invoke<[string[], string[], string[]]>("get_groups_and_titles", { dbPath });
       setGroups(g);
       setTitles(t);
+      setFormatos(f);
     } catch (e) {
       console.error(e);
     }
   }
 
   async function loadRecord(offset: number) {
+    if (!dbPath) return;
     try {
       const rec = await invoke<RecordData>("get_record", { offset, dbPath });
       setCurrentRecord(rec);
@@ -113,6 +118,43 @@ function App() {
       setRecordIndex(offset);
     } catch (e) {
       alert("Record not found!");
+    }
+  }
+
+  // Silent autosaver function
+  async function handleSave() {
+    if (!dbPath || !currentRecord) return;
+    try {
+      await invoke("update_record", { record: currentRecord, dbPath });
+      loadComboboxes();
+    } catch (e) {
+      console.error("Auto-save failed:", e);
+    }
+  }
+
+  async function handleAdd() {
+    if (!dbPath) return;
+    try {
+      const newIndex = await invoke<number>("add_record", { dbPath });
+      await loadTotalRecords();
+      setRecordIndex(newIndex);
+    } catch (e) {
+      console.error(e);
+      alert("Error adding record: " + e);
+    }
+  }
+
+  async function handleDelete() {
+    if (!dbPath || !currentRecord) return;
+    if (!confirm("Are you sure you want to delete this record?")) return;
+    try {
+      await invoke("delete_record", { id: currentRecord.id, dbPath });
+      await loadTotalRecords();
+      setRecordIndex(0);
+      loadComboboxes();
+    } catch (e) {
+      console.error(e);
+      alert("Error deleting record: " + e);
     }
   }
 
@@ -146,43 +188,46 @@ function App() {
       <div className="form-body">
         <div className="field-group grupo">
           <label>Grupo:</label>
-          <input type="text" readOnly value={currentRecord?.grupo || ""} />
+          <input type="text" value={currentRecord?.grupo || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, grupo: e.target.value }) : null} onBlur={handleSave} />
         </div>
         <div className="field-group pais">
           <label>Pais:</label>
-          <input type="text" readOnly value={currentRecord?.pais || ""} />
+          <input type="text" value={currentRecord?.pais || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, pais: e.target.value }) : null} onBlur={handleSave} />
         </div>
 
         <div className="field-group disco">
           <label>Disco:</label>
-          <input type="text" readOnly value={currentRecord?.titulo || ""} />
+          <input type="text" value={currentRecord?.titulo || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, titulo: e.target.value }) : null} onBlur={handleSave} />
         </div>
         <div className="field-group anio">
           <label>Año:</label>
-          <input type="text" readOnly value={currentRecord?.anio || ""} />
+          <input type="text" value={currentRecord?.anio || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, anio: e.target.value }) : null} onBlur={handleSave} />
         </div>
         <div className="field-group estilo">
           <label>Estilo:</label>
-          <input type="text" readOnly value={currentRecord?.estilo || ""} />
+          <input type="text" value={currentRecord?.estilo || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, estilo: e.target.value }) : null} onBlur={handleSave} />
         </div>
         <div className="field-group formato">
           <label>Formato:</label>
-          <input type="text" readOnly value={currentRecord?.formato || ""} />
+          <input type="text" list="formatos-list" value={currentRecord?.formato || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, formato: e.target.value }) : null} onBlur={handleSave} />
+          <datalist id="formatos-list">
+            {formatos.map((f, i) => <option key={i} value={f} />)}
+          </datalist>
         </div>
 
         <div className="field-group observ">
           <label>OBSERV:</label>
-          <input type="text" readOnly value={currentRecord?.observ || ""} />
+          <input type="text" value={currentRecord?.observ || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, observ: e.target.value }) : null} onBlur={handleSave} />
         </div>
 
         <div className="field-group canciones">
           <label>CANCIONES</label>
-          <textarea readOnly value={currentRecord?.canciones || ""}></textarea>
+          <textarea value={currentRecord?.canciones || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, canciones: e.target.value }) : null} onBlur={handleSave}></textarea>
         </div>
 
         <div className="field-group creditos">
           <label>CREDITOS</label>
-          <textarea readOnly value={currentRecord?.creditos || ""}></textarea>
+          <textarea value={currentRecord?.creditos || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, creditos: e.target.value }) : null} onBlur={handleSave}></textarea>
         </div>
 
         <div className="photo-cd-wrapper">
@@ -222,7 +267,7 @@ function App() {
             </div>
 
             <div style={{ alignSelf: 'flex-end', paddingBottom: '2px' }}>
-              <button onClick={handleSearchClick} title="Buscar">🔍</button>
+              <button className="search-btn" onClick={handleSearchClick} title="Buscar">🔍</button>
             </div>
           </div>
         </div>
@@ -236,6 +281,11 @@ function App() {
         <span className="record-count">{recordIndex + 1} de {totalRecords}</span>
         <button onClick={() => setRecordIndex(recordIndex + 1)} disabled={recordIndex >= totalRecords - 1}>▶</button>
         <button onClick={() => setRecordIndex(totalRecords - 1)} disabled={recordIndex >= totalRecords - 1}>⏭</button>
+
+        <div style={{ marginLeft: "auto", display: "flex", gap: "10px" }}>
+          <button onClick={handleAdd} style={{ backgroundColor: "#48bb78", color: "white", padding: "4px 12px", border: "none", fontWeight: "bold" }}>➕ Añadir</button>
+          <button onClick={handleDelete} style={{ backgroundColor: "#f56565", color: "white", padding: "4px 12px", border: "none", fontWeight: "bold" }}>🗑 Borrar</button>
+        </div>
       </div>
     </div>
   );
