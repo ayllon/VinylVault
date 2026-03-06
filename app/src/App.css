@@ -1,0 +1,251 @@
+* {
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f5f7fa; /* Sleek, neutral minimal background */
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.auth-overlay {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: #1a202c;
+  color: white;
+}
+
+.auth-overlay button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  transition: background-color 0.2s;
+}
+.auth-overlay button:hover {
+  background-color: #2b6cb0;
+}
+
+.form-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-body {
+  flex: 1;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr) minmax(200px, 1fr) minmax(200px, 1fr);
+  grid-template-rows: auto auto auto 1fr;
+  gap: 15px 20px;
+  overflow: hidden;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-group label {
+  color: #4a5568; /* Dark elegant grey */
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.field-group input, .field-group textarea {
+  border: 1px solid #cbd5e0;
+  background-color: #ffffff;
+  padding: 8px 10px;
+  font-size: 14px;
+  width: 100%;
+  border-radius: 4px;
+  color: #2d3748;
+}
+
+.field-group input:focus, .field-group textarea:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 1px #3182ce;
+}
+
+.field-group textarea {
+  resize: none;
+  height: 100%;
+}
+
+.field-group.canciones textarea, .field-group.creditos textarea {
+  overflow-y: auto;
+}
+
+.photo-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.photo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* or contain based on preference, cover is nicer for squares */
+}
+
+.photo-label {
+  color: #4a5568;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Specific Grid Placements */
+.grupo { grid-column: 1 / 2; }
+.pais { grid-column: 2 / 4; }
+
+.disco { grid-column: 1 / 2; }
+.anio { grid-column: 2 / 3; }
+.estilo { grid-column: 3 / 4; }
+.formato { grid-column: 4 / 5; }
+
+.observ { grid-column: 1 / 5; }
+/* Dropped the absolute red font for observation */
+
+.canciones { grid-column: 1 / 2; grid-row: 4 / 5; height: 100%; }
+.creditos { grid-column: 2 / 3; grid-row: 4 / 5; height: 100%; }
+
+.photo-cd-wrapper { grid-column: 3 / 4; grid-row: 4 / 5; margin-top: 10px;}
+.photo-lp-wrapper { grid-column: 4 / 5; grid-row: 4 / 5; margin-top: 10px;}
+
+.action-bar {
+  grid-column: 1 / 5;
+  grid-row: 5 / 6;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 5px;
+}
+
+.search-boxes {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+}
+
+.search-box {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.search-box label {
+  color: #4a5568;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.search-box select, .search-box input {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e0;
+}
+
+.search-btn {
+  padding: 8px 16px;
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  align-self: flex-end;
+  height: min-content;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+.search-btn:hover { background-color: #2b6cb0; }
+
+.nav-bar-bottom {
+  background-color: #edf2f7;
+  padding: 8px 20px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 13px;
+  height: 45px;
+  color: #2d3748;
+}
+
+.nav-bar-bottom button {
+  background: white;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5568;
+  transition: all 0.2s;
+}
+
+.nav-bar-bottom button:hover:not(:disabled) {
+  background-color: #e2e8f0;
+}
+
+.nav-bar-bottom button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.record-count {
+  margin: 0 10px;
+  font-weight: 600;
+}
+
+/* Responsive constraints */
+@media (max-width: 900px) {
+  .form-body {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    overflow-y: auto;
+  }
+  .pais { grid-column: 2 / 3; }
+  .estilo { grid-column: 1 / 2; }
+  .formato { grid-column: 2 / 3; }
+  .observ { grid-column: 1 / 3; }
+  
+  .canciones { grid-column: 1 / 3; grid-row: auto; height: 250px; }
+  .creditos { grid-column: 1 / 3; grid-row: auto; height: 250px; }
+  
+  .photo-cd-wrapper { grid-column: 1 / 2; grid-row: auto; max-width: 300px; justify-self: center; width: 100%; }
+  .photo-lp-wrapper { grid-column: 2 / 3; grid-row: auto; max-width: 300px; justify-self: center; width: 100%; }
+  
+  .action-bar { grid-column: 1 / 3; grid-row: auto; }
+}
