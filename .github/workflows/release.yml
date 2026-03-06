@@ -1,0 +1,79 @@
+name: Build release artifacts
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and package for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Cache Node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('app/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('app/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential curl libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev libsecret-1-dev pkg-config libssl-dev
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix app
+
+      - name: Build frontend
+        run: npm run build --prefix app
+
+      - name: Build Tauri app
+        run: npm --prefix app run tauri -- build
+
+      - name: Show bundles (debug)
+        run: |
+          echo "Bundles in app/src-tauri/target/release/bundle:"
+          ls -la app/src-tauri/target/release/bundle || true
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-tauri-bundles
+          path: app/src-tauri/target/release/bundle/**
+          retention-days: 7
