@@ -35,6 +35,14 @@ function App() {
   const [groups, setGroups] = useState<string[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
   const [formatos, setFormatos] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [filteredFormatos, setFilteredFormatos] = useState<string[]>([]);
+  const [showGrupoSuggestions, setShowGrupoSuggestions] =
+    useState<boolean>(false);
+  const [filteredGroups, setFilteredGroups] = useState<string[]>([]);
+  const [showDiscoSuggestions, setShowDiscoSuggestions] =
+    useState<boolean>(false);
+  const [filteredTitles, setFilteredTitles] = useState<string[]>([]);
 
   const [searchGrupo, setSearchGrupo] = useState<string>("");
   const [searchDisco, setSearchDisco] = useState<string>("");
@@ -81,7 +89,10 @@ function App() {
   async function loadComboboxes() {
     if (!dbPath) return;
     try {
-      const [g, t, f] = await invoke<[string[], string[], string[]]>("get_groups_and_titles", { dbPath });
+      const [g, t, f] = await invoke<[string[], string[], string[]]>(
+        "get_groups_and_titles",
+        { dbPath },
+      );
       setGroups(g);
       setTitles(t);
       setFormatos(f);
@@ -107,14 +118,20 @@ function App() {
       let col = "";
       let val = "";
       if (searchGrupo) {
-        col = "GRUPO"; val = searchGrupo;
+        col = "GRUPO";
+        val = searchGrupo;
       } else if (searchDisco) {
-        col = "TITULO"; val = searchDisco;
+        col = "TITULO";
+        val = searchDisco;
       } else {
         return;
       }
 
-      const offset = await invoke<number>("find_record_offset", { column: col, value: val, dbPath });
+      const offset = await invoke<number>("find_record_offset", {
+        column: col,
+        value: val,
+        dbPath,
+      });
       setRecordIndex(offset);
     } catch (e) {
       alert("Record not found!");
@@ -188,103 +205,451 @@ function App() {
       <div className="form-body">
         <div className="field-group grupo">
           <label>Grupo:</label>
-          <input type="text" value={currentRecord?.grupo || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, grupo: e.target.value }) : null} onBlur={handleSave} />
+          <input
+            type="text"
+            value={currentRecord?.grupo || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({ ...currentRecord, grupo: e.target.value })
+                : null
+            }
+            onBlur={handleSave}
+          />
         </div>
         <div className="field-group pais">
           <label>Pais:</label>
-          <input type="text" value={currentRecord?.pais || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, pais: e.target.value }) : null} onBlur={handleSave} />
+          <input
+            type="text"
+            value={currentRecord?.pais || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({ ...currentRecord, pais: e.target.value })
+                : null
+            }
+            onBlur={handleSave}
+          />
         </div>
 
         <div className="field-group disco">
           <label>Disco:</label>
-          <input type="text" value={currentRecord?.titulo || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, titulo: e.target.value }) : null} onBlur={handleSave} />
+          <input
+            type="text"
+            value={currentRecord?.titulo || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({ ...currentRecord, titulo: e.target.value })
+                : null
+            }
+            onBlur={handleSave}
+          />
         </div>
         <div className="field-group anio">
           <label>Año:</label>
-          <input type="text" value={currentRecord?.anio || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, anio: e.target.value }) : null} onBlur={handleSave} />
+          <input
+            type="text"
+            value={currentRecord?.anio || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({ ...currentRecord, anio: e.target.value })
+                : null
+            }
+            onBlur={handleSave}
+          />
         </div>
         <div className="field-group estilo">
           <label>Estilo:</label>
-          <input type="text" value={currentRecord?.estilo || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, estilo: e.target.value }) : null} onBlur={handleSave} />
+          <input
+            type="text"
+            value={currentRecord?.estilo || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({ ...currentRecord, estilo: e.target.value })
+                : null
+            }
+            onBlur={handleSave}
+          />
         </div>
         <div className="field-group formato">
           <label>Formato:</label>
-          <input type="text" list="formatos-list" value={currentRecord?.formato || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, formato: e.target.value }) : null} onBlur={handleSave} />
-          <datalist id="formatos-list">
-            {formatos.map((f, i) => <option key={i} value={f} />)}
-          </datalist>
+          <div style={{ position: "relative", zIndex: 100 }}>
+            <input
+              type="text"
+              value={currentRecord?.formato || ""}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (currentRecord) {
+                  setCurrentRecord({
+                    ...currentRecord,
+                    formato: value,
+                  });
+                }
+                // Filter suggestions as user types
+                if (value.length > 0) {
+                  const filtered = formatos.filter((f) =>
+                    f.toLowerCase().includes(value.toLowerCase()),
+                  );
+                  setFilteredFormatos(filtered);
+                  setShowSuggestions(true);
+                } else {
+                  setShowSuggestions(false);
+                }
+              }}
+              onBlur={() => {
+                handleSave();
+                // Delay hiding suggestions to allow click on suggestion
+                setTimeout(() => setShowSuggestions(false), 200);
+              }}
+              onFocus={() => {
+                if (
+                  currentRecord?.formato &&
+                  currentRecord.formato.length > 0
+                ) {
+                  const filtered = formatos.filter((f) =>
+                    f
+                      .toLowerCase()
+                      .includes(currentRecord.formato!.toLowerCase()),
+                  );
+                  setFilteredFormatos(filtered);
+                  setShowSuggestions(true);
+                }
+              }}
+            />
+            {showSuggestions && filteredFormatos.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  width: "100%",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  backgroundColor: "white",
+                  border: "1px solid #cbd5e0",
+                  borderTop: "none",
+                  zIndex: 10000,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                }}
+              >
+                {filteredFormatos.map((f, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                      backgroundColor:
+                        currentRecord?.formato === f ? "#edf2f7" : "white",
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentRecord) {
+                        setCurrentRecord({
+                          ...currentRecord,
+                          formato: f,
+                        });
+                        handleSave();
+                      }
+                      setShowSuggestions(false);
+                    }}
+                  >
+                    {f}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="field-group observ">
           <label>OBSERV:</label>
-          <input type="text" value={currentRecord?.observ || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, observ: e.target.value }) : null} onBlur={handleSave} />
+          <input
+            type="text"
+            value={currentRecord?.observ || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({ ...currentRecord, observ: e.target.value })
+                : null
+            }
+            onBlur={handleSave}
+          />
         </div>
 
         <div className="field-group canciones">
           <label>CANCIONES</label>
-          <textarea value={currentRecord?.canciones || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, canciones: e.target.value }) : null} onBlur={handleSave}></textarea>
+          <textarea
+            value={currentRecord?.canciones || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({
+                    ...currentRecord,
+                    canciones: e.target.value,
+                  })
+                : null
+            }
+            onBlur={handleSave}
+          ></textarea>
         </div>
 
         <div className="field-group creditos">
           <label>CREDITOS</label>
-          <textarea value={currentRecord?.creditos || ""} onChange={e => currentRecord ? setCurrentRecord({ ...currentRecord, creditos: e.target.value }) : null} onBlur={handleSave}></textarea>
+          <textarea
+            value={currentRecord?.creditos || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({
+                    ...currentRecord,
+                    creditos: e.target.value,
+                  })
+                : null
+            }
+            onBlur={handleSave}
+          ></textarea>
         </div>
 
         <div className="photo-cd-wrapper">
           <div className="photo-label">Portada CD</div>
           <div className="photo-box">
-            {currentRecord && <img src={getImagePath("cd")} onError={(e) => (e.currentTarget.style.display = 'none')} onLoad={(e) => (e.currentTarget.style.display = 'block')} />}
+            {currentRecord && (
+              <img
+                src={getImagePath("cd")}
+                onError={(e) => (e.currentTarget.style.display = "none")}
+                onLoad={(e) => (e.currentTarget.style.display = "block")}
+              />
+            )}
           </div>
         </div>
 
         <div className="photo-lp-wrapper">
           <div className="photo-label">Portada LP</div>
           <div className="photo-box">
-            {currentRecord && <img src={getImagePath("lp")} onError={(e) => (e.currentTarget.style.display = 'none')} onLoad={(e) => (e.currentTarget.style.display = 'block')} />}
+            {currentRecord && (
+              <img
+                src={getImagePath("lp")}
+                onError={(e) => (e.currentTarget.style.display = "none")}
+                onLoad={(e) => (e.currentTarget.style.display = "block")}
+              />
+            )}
           </div>
         </div>
 
         <div className="action-bar">
           <div className="search-boxes">
-            <div className="search-box" style={{ flex: 2 }}>
+            <div className="search-box" style={{ flex: 2, zIndex: 100 }}>
               <label>Buscar por grupo</label>
-              <div style={{ display: 'flex' }}>
-                <select value={searchGrupo} onChange={(e) => { setSearchGrupo(e.target.value); setSearchDisco(""); }} style={{ flex: 1 }}>
-                  <option value="">-- Select --</option>
-                  {groups.map((g, i) => <option key={i} value={g}>{g}</option>)}
-                </select>
+              <div style={{ display: "flex", position: "relative" }}>
+                <input
+                  type="text"
+                  value={searchGrupo}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSearchGrupo(value);
+                    setSearchDisco("");
+                    // Filter groups as user types
+                    if (value.length > 0) {
+                      const filtered = groups.filter((g) =>
+                        g.toLowerCase().includes(value.toLowerCase()),
+                      );
+                      setFilteredGroups(filtered);
+                      setShowGrupoSuggestions(true);
+                    } else {
+                      setShowGrupoSuggestions(false);
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowGrupoSuggestions(false), 200);
+                  }}
+                  onFocus={() => {
+                    if (searchGrupo.length > 0) {
+                      const filtered = groups.filter((g) =>
+                        g.toLowerCase().includes(searchGrupo.toLowerCase()),
+                      );
+                      setFilteredGroups(filtered);
+                      setShowGrupoSuggestions(true);
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                  placeholder="Type to search groups..."
+                />
+                {showGrupoSuggestions && filteredGroups.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      width: "100%",
+                      maxHeight: "200px",
+                      overflowY: "auto",
+                      backgroundColor: "white",
+                      border: "1px solid #cbd5e0",
+                      borderTop: "none",
+                      zIndex: 10000,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    }}
+                  >
+                    {filteredGroups.map((g, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          padding: "8px 10px",
+                          cursor: "pointer",
+                          backgroundColor:
+                            searchGrupo === g ? "#edf2f7" : "white",
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSearchGrupo(g);
+                          setSearchDisco("");
+                          setShowGrupoSuggestions(false);
+                        }}
+                      >
+                        {g}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="search-box" style={{ flex: 2 }}>
+            <div className="search-box" style={{ flex: 2, zIndex: 100 }}>
               <label>Buscar por disco</label>
-              <div style={{ display: 'flex' }}>
-                <select value={searchDisco} onChange={(e) => { setSearchDisco(e.target.value); setSearchGrupo(""); }} style={{ flex: 1 }}>
-                  <option value="">-- Select --</option>
-                  {titles.map((t, i) => <option key={i} value={t}>{t}</option>)}
-                </select>
+              <div style={{ display: "flex", position: "relative" }}>
+                <input
+                  type="text"
+                  value={searchDisco}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSearchDisco(value);
+                    setSearchGrupo("");
+                    // Filter titles as user types
+                    if (value.length > 0) {
+                      const filtered = titles.filter((t) =>
+                        t.toLowerCase().includes(value.toLowerCase()),
+                      );
+                      setFilteredTitles(filtered);
+                      setShowDiscoSuggestions(true);
+                    } else {
+                      setShowDiscoSuggestions(false);
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowDiscoSuggestions(false), 200);
+                  }}
+                  onFocus={() => {
+                    if (searchDisco.length > 0) {
+                      const filtered = titles.filter((t) =>
+                        t.toLowerCase().includes(searchDisco.toLowerCase()),
+                      );
+                      setFilteredTitles(filtered);
+                      setShowDiscoSuggestions(true);
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                  placeholder="Type to search discs..."
+                />
+                {showDiscoSuggestions && filteredTitles.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      width: "100%",
+                      maxHeight: "200px",
+                      overflowY: "auto",
+                      backgroundColor: "white",
+                      border: "1px solid #cbd5e0",
+                      borderTop: "none",
+                      zIndex: 10000,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    }}
+                  >
+                    {filteredTitles.map((t, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          padding: "8px 10px",
+                          cursor: "pointer",
+                          backgroundColor:
+                            searchDisco === t ? "#edf2f7" : "white",
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSearchDisco(t);
+                          setSearchGrupo("");
+                          setShowDiscoSuggestions(false);
+                        }}
+                      >
+                        {t}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div style={{ alignSelf: 'flex-end', paddingBottom: '2px' }}>
-              <button className="search-btn" onClick={handleSearchClick} title="Buscar">🔍</button>
+            <div style={{ alignSelf: "flex-end", paddingBottom: "2px" }}>
+              <button
+                className="search-btn"
+                onClick={handleSearchClick}
+                title="Buscar"
+              >
+                🔍
+              </button>
             </div>
           </div>
         </div>
-
       </div>
 
       <div className="nav-bar-bottom">
         <span>Registro:</span>
-        <button onClick={() => setRecordIndex(0)} disabled={recordIndex === 0}>⏮</button>
-        <button onClick={() => setRecordIndex(recordIndex - 1)} disabled={recordIndex === 0}>◀</button>
-        <span className="record-count">{recordIndex + 1} de {totalRecords}</span>
-        <button onClick={() => setRecordIndex(recordIndex + 1)} disabled={recordIndex >= totalRecords - 1}>▶</button>
-        <button onClick={() => setRecordIndex(totalRecords - 1)} disabled={recordIndex >= totalRecords - 1}>⏭</button>
+        <button onClick={() => setRecordIndex(0)} disabled={recordIndex === 0}>
+          ⏮
+        </button>
+        <button
+          onClick={() => setRecordIndex(recordIndex - 1)}
+          disabled={recordIndex === 0}
+        >
+          ◀
+        </button>
+        <span className="record-count">
+          {recordIndex + 1} de {totalRecords}
+        </span>
+        <button
+          onClick={() => setRecordIndex(recordIndex + 1)}
+          disabled={recordIndex >= totalRecords - 1}
+        >
+          ▶
+        </button>
+        <button
+          onClick={() => setRecordIndex(totalRecords - 1)}
+          disabled={recordIndex >= totalRecords - 1}
+        >
+          ⏭
+        </button>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: "10px" }}>
-          <button onClick={handleAdd} style={{ backgroundColor: "#48bb78", color: "white", padding: "4px 12px", border: "none", fontWeight: "bold" }}>➕ Añadir</button>
-          <button onClick={handleDelete} style={{ backgroundColor: "#f56565", color: "white", padding: "4px 12px", border: "none", fontWeight: "bold" }}>🗑 Borrar</button>
+          <button
+            onClick={handleAdd}
+            style={{
+              backgroundColor: "#48bb78",
+              color: "white",
+              padding: "4px 12px",
+              border: "none",
+              fontWeight: "bold",
+            }}
+          >
+            ➕ Añadir
+          </button>
+          <button
+            onClick={handleDelete}
+            style={{
+              backgroundColor: "#f56565",
+              color: "white",
+              padding: "4px 12px",
+              border: "none",
+              fontWeight: "bold",
+            }}
+          >
+            🗑 Borrar
+          </button>
         </div>
       </div>
     </div>
