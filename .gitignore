@@ -215,3 +215,5 @@ target
 
 # RustRover and PyCharm
 .idea/
+
+data/
