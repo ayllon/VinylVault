@@ -22,7 +22,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
 
       - name: Cache Node modules
         uses: actions/cache@v4
@@ -34,7 +33,7 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
         with:
           toolchain: stable
           profile: minimal
@@ -74,7 +73,7 @@ jobs:
           sudo gem install --no-document fpm || true
 
       - name: Install frontend dependencies
-        run: npm ci --prefix app
+        run: npm install --prefix app
 
       - name: Build frontend
         run: npm run build --prefix app
