@@ -34,10 +34,9 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
+        uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # 1.15.3
         with:
           toolchain: stable
-          profile: minimal
           override: true
 
       - name: Cache Cargo
