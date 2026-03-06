@@ -79,11 +79,3 @@ The `tauri build` step reads `app/src-tauri/tauri.conf.json` which is configured
 
 - If Tauri CLI fails: ensure Rust toolchain is installed (`rustup default stable`) and that required platform toolchains are present. Consider installing the Tauri CLI globally with `npm i -g @tauri-apps/cli` or use the local script: `npm run tauri -- help`.
 - If the frontend port is different, update `devUrl` in `app/src-tauri/tauri.conf.json` or run Vite on the configured port.
-
-## Contributing
-
-Open issues or pull requests with small, focused changes. For build issues, include OS and exact error output.
-
-## License
-
-If the project has a license, add it here. Otherwise, add a `LICENSE` file at the repo root.
