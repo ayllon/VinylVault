@@ -12,6 +12,7 @@ jobs:
     name: Build and package for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
@@ -21,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22.22.0'
 
       - name: Cache Node modules
         uses: actions/cache@v4
@@ -73,13 +74,16 @@ jobs:
           sudo gem install --no-document fpm || true
 
       - name: Install frontend dependencies
-        run: npm install --prefix app
+        working-directory: app
+        run: npm install
 
       - name: Build frontend
-        run: npm run build --prefix app
+        working-directory: app
+        run: npm run build
 
       - name: Build Tauri app
-        run: npm --prefix app run tauri -- build
+        working-directory: app
+        run: npm run tauri -- build
 
       - name: Show bundles (debug)
         run: |
