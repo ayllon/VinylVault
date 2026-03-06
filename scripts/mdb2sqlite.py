@@ -2,6 +2,7 @@
 import csv
 import io
 import re
+import sqlite3
 import sys
 import unicodedata
 from argparse import ArgumentParser
@@ -86,13 +87,13 @@ def extract_access_ole_image(ole_data: bytes) -> Image.Image:
     return Image.open(io.BytesIO(full_bmp)).convert("RGB")
 
 
-def maybe_extract(hex: str, cover_dir: Path, key: str, suffix: str) -> Optional[Path]:
+def maybe_extract(hex: Optional[str], cover_dir: Path, key: str, suffix: str) -> Optional[Path]:
     if not hex:
         return None
     data = bytes.fromhex(hex)
     nested = cover_dir / key[:2]
     nested.mkdir(exist_ok=True)
-    cover_path = nested / (key + "_cd.jpeg")
+    cover_path = nested / f"{key}_{suffix}.jpeg"
     image = extract_access_ole_image(data)
     image.save(cover_path)
     return cover_path
@@ -121,6 +122,26 @@ def main():
     file_size = args.csv.stat().st_size
     print(f"CSV file has {file_size} bytes")
 
+    # Connect to SQLite and initialize schema
+    conn = sqlite3.connect(args.sqlite)
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS discos")
+    cursor.execute("""
+        CREATE TABLE discos (
+            GRUPO TEXT,
+            TITULO TEXT,
+            FORMATO TEXT,
+            ANIO TEXT,
+            ESTILO TEXT,
+            PAIS TEXT,
+            CANCIONES TEXT,
+            CREDITOS TEXT,
+            OBSERV TEXT
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_discos_grupo ON discos (GRUPO)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_discos_titulo ON discos (TITULO)")
+
     # Process with progress bar based on file position
     with open(args.csv, "rt") as fd:
         reader = csv.DictReader(fd)
@@ -128,7 +149,26 @@ def main():
         for row in reader:
             key = sanitize_key(row["TITULO"].strip('" '))
 
-            _ = maybe_extract(row["Portada CD"], cover_dir, key, "cd")
-            _ = maybe_extract(row["Portada LP"], cover_dir, key, "lp")
+            _ = maybe_extract(row.get("Portada CD"), cover_dir, key, "cd")
+            _ = maybe_extract(row.get("Portada LP"), cover_dir, key, "lp")
+
+            cursor.execute("""
+                INSERT INTO discos (
+                    GRUPO, TITULO, FORMATO, ANIO, ESTILO, PAIS, CANCIONES, CREDITOS, OBSERV
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                row.get("GRUPO"),
+                row.get("TITULO"),
+                row.get("FORMATO"),
+                row.get("ANIO"),
+                row.get("ESTILO"),
+                row.get("PAIS"),
+                row.get("CANCIONES"),
+                row.get("CREDITOS"),
+                row.get("OBSERV")
+            ))
 
             progress.update(len(",".join(row.values())))
+            
+    conn.commit()
+    conn.close()
