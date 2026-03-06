@@ -73,6 +73,12 @@ jobs:
           # Install fpm (optional, used for deb/rpm packaging)
           sudo gem install --no-document fpm || true
 
+      - name: Ensure /usr/local/bin is on PATH (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "/usr/local/bin" >> $GITHUB_PATH
+          echo "PATH after update: $PATH"
+
       - name: Install frontend dependencies
         working-directory: app
         run: npm install
@@ -85,10 +91,22 @@ jobs:
         working-directory: app
         run: npm run tauri -- build
 
-      - name: Show bundles (debug)
+      - name: Show bundles (Linux debug)
+        if: runner.os == 'Linux'
         run: |
           echo "Bundles in app/src-tauri/target/release/bundle:"
           ls -la app/src-tauri/target/release/bundle || true
+
+      - name: Show bundles (Windows debug)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Output "Bundles in app/src-tauri/target/release/bundle:"
+          if (Test-Path 'app/src-tauri/target/release/bundle') {
+            Get-ChildItem 'app/src-tauri/target/release/bundle' -Recurse -Force | Format-List
+          } else {
+            Write-Output 'No bundle directory found'
+          }
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4
