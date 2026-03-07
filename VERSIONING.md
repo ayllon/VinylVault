@@ -28,6 +28,13 @@ The CI pipeline automatically appends a build ID to the version:
 1. The `release.yml` workflow generates a build ID using the current date
 2. Runs `./scripts/update-version.sh BUILDID` to update all version files
 3. Builds the app with the versioned files
+4. Publishes artifacts to a GitHub Release tagged as "nightly"
+
+**Stable download URLs:**
+- Linux: `https://github.com/ayllon/VinylVault/releases/download/nightly/vinylvault_amd64.deb`
+- Windows: `https://github.com/ayllon/VinylVault/releases/download/nightly/VinylVault_x64_en-US.msi`
+
+See [DOWNLOAD.md](DOWNLOAD.md) for complete installation instructions.
 
 ### Updating Version Manually
 

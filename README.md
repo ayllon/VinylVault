@@ -4,6 +4,12 @@ A desktop music-records manager built with a Vite + React (TypeScript) frontend 
 
 This project is a modern rewrite of a Microsoft Access application I built for my father in 2001 — he is still using the original, and the migration to a cross-platform native app has been long overdue.
 
+## Download & Install
+
+**For end users:** See [DOWNLOAD.md](DOWNLOAD.md) for ready-to-install packages (Linux .deb and Windows .msi).
+
+Automated nightly builds are available at: https://github.com/ayllon/VinylVault/releases/tag/nightly
+
 ## Contents
 
 - `app/` — frontend (Vite + React + TypeScript) and Tauri frontend folder

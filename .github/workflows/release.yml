@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -68,6 +68,10 @@ jobs:
         run: |
           BUILD_ID=$(date +%Y%m%d)
           echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          VERSION=$(node -e "console.log(require('./app/src-tauri/tauri.conf.json').version)")
+          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
+          NEW_VERSION="${MAJOR_MINOR}.${BUILD_ID}"
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
           ./scripts/update-version.sh $BUILD_ID
 
       - name: Install frontend dependencies
@@ -82,26 +86,68 @@ jobs:
         working-directory: app
         run: npm run tauri -- build
 
-      - name: Show bundles (Linux debug)
+      - name: Find and copy artifacts (Linux)
         if: runner.os == 'Linux'
         run: |
-          echo "Bundles in app/src-tauri/target/release/bundle:"
-          ls -la app/src-tauri/target/release/bundle || true
+          mkdir -p artifacts
+          find app/src-tauri/target/release/bundle/deb -name "*.deb" -exec cp {} artifacts/ \;
+          ls -la artifacts/
 
-      - name: Show bundles (Windows debug)
+      - name: Find and copy artifacts (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Output "Bundles in app/src-tauri/target/release/bundle:"
-          if (Test-Path 'app/src-tauri/target/release/bundle') {
-            Get-ChildItem 'app/src-tauri/target/release/bundle' -Recurse -Force | Format-List
-          } else {
-            Write-Output 'No bundle directory found'
-          }
+          New-Item -ItemType Directory -Force -Path artifacts
+          Get-ChildItem -Path app\src-tauri\target\release\bundle\msi -Filter *.msi -Recurse | Copy-Item -Destination artifacts\
+          Get-ChildItem -Path artifacts
 
-      - name: Upload bundles
+      - name: Upload artifacts for release
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ runner.os }}-tauri-bundles
-          path: app/src-tauri/target/release/bundle/**
+          name: ${{ runner.os }}-installers
+          path: artifacts/*
           retention-days: 7
+
+  release:
+    name: Create or update nightly release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Create or update nightly release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          tag_name: nightly
+          name: "Nightly Build"
+          body: |
+            **Automated nightly build from main branch**
+            
+            Build date: ${{ github.event.head_commit.timestamp }}
+            Commit: ${{ github.sha }}
+            
+            ### Installation
+            
+            **Linux (Debian/Ubuntu):**
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/nightly/vinylvault_amd64.deb
+            sudo dpkg -i vinylvault_amd64.deb
+            ```
+            
+            **Windows:**
+            Download and run the `.msi` installer below.
+            
+            ---
+            These builds are automatically generated and may be unstable.
+          files: |
+            artifacts/**/*.deb
+            artifacts/**/*.msi
+          prerelease: true
+          draft: false
+          fail_on_unmatched_files: false
