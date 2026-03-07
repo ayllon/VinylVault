@@ -77,8 +77,14 @@ jobs:
           echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
           ./scripts/update-version.sh $BUILD_ID
 
-      - name: Clean previous build artifacts
+      - name: Clean previous build artifacts (Linux)
+        if: runner.os == 'Linux'
         run: rm -rf app/src-tauri/target/release/bundle
+
+      - name: Clean previous build artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Remove-Item -Path app/src-tauri/target/release/bundle -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Install frontend dependencies
         working-directory: app
