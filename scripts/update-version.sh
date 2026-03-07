@@ -1,7 +1,8 @@
 #!/bin/bash
 # Update version numbers in Tauri app for CI builds
-# Usage: ./update-version.sh [BUILD_SUFFIX]
-# Example: ./update-version.sh 20260307 -> results in version like 0.1.20260307
+# Usage: ./update-version.sh [BUILD_ID]
+# BUILD_ID format: YY * 1000 + day_of_year (e.g., 26066 for day 66 of 2026)
+# Example: ./update-version.sh 26066 -> results in version like 0.1.26066
 
 set -euo pipefail
 

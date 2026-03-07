@@ -66,7 +66,10 @@ jobs:
       - name: Set version with build ID
         shell: bash
         run: |
-          BUILD_ID=$(date +%Y%m%d)
+          # Generate build ID: YY * 1000 + day_of_year (stays under 65535 limit)
+          YEAR=$(date +%y)
+          DAY_OF_YEAR=$(date +%j)
+          BUILD_ID=$((YEAR * 1000 + 10#$DAY_OF_YEAR))
           echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
           VERSION=$(grep '"version"' app/src-tauri/tauri.conf.json | head -1 | cut -d'"' -f4)
           MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)

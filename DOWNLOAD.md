@@ -28,7 +28,9 @@ Visit the [Releases page](https://github.com/ayllon/VinylVault/releases) to see 
 
 ### Installation Notes
 
-- The nightly builds are automatically versioned with the build date (e.g., `0.1.20260307`)
+- The nightly builds are automatically versioned with a build ID (e.g., `0.1.26066`)
+  - Format: `MAJOR.MINOR.BUILD_ID` where BUILD_ID = YY × 1000 + day_of_year
+  - Example: For March 7, 2026 (day 66): version `0.1.26066`
 - Package managers will correctly handle upgrades from older nightly builds
 - These builds come from the main branch and should be stable, but may include recent changes
 
