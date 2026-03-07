@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
@@ -49,6 +50,12 @@ interface RecordData {
   observ: string | null;
 }
 
+interface ImportProgressPayload {
+  processed: number;
+  total: number;
+  percent: number;
+}
+
 function sanitizeKey(text: string | null | undefined): string {
   if (!text) return "";
   const val = text.replaceAll(/^["'\s]+|["'\s]+$/g, "");
@@ -61,6 +68,9 @@ function sanitizeKey(text: string | null | undefined): string {
 function App() {
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
   const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [importProcessed, setImportProcessed] = useState<number>(0);
+  const [importTotal, setImportTotal] = useState<number>(0);
+  const [importPercent, setImportPercent] = useState<number>(0);
   const [coversDir, setCoversDir] = useState<string>("");
   const [recordIndex, setRecordIndex] = useState<number>(0);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -127,6 +137,32 @@ function App() {
     }
   }, [recordIndex, totalRecords, isDbEmpty]);
 
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+
+    const setupListener = async () => {
+      unlisten = await listen<ImportProgressPayload>(
+        "mdb-import-progress",
+        (event) => {
+          const payload = event.payload;
+          setImportProcessed(payload.processed ?? 0);
+          setImportTotal(payload.total ?? 0);
+          setImportPercent(payload.percent ?? 0);
+        },
+      );
+    };
+
+    setupListener().catch((e) => {
+      console.error("Failed to register import progress listener", e);
+    });
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, []);
+
   async function handleImport() {
     try {
       const selected = await open({
@@ -134,6 +170,9 @@ function App() {
         filters: [{ name: "Microsoft Access", extensions: ["mdb"] }],
       });
       if (typeof selected === "string") {
+        setImportProcessed(0);
+        setImportTotal(0);
+        setImportPercent(0);
         setIsImporting(true);
         try {
           const count = await invoke<number>("import_mdb", { mdbPath: selected });
@@ -263,6 +302,16 @@ function App() {
           <div className="import-progress">
             <div className="spinner"></div>
             <p>Importing database...</p>
+            <progress
+              className="progress-track"
+              max={100}
+              value={Math.max(0, Math.min(100, importPercent))}
+            ></progress>
+            <p className="import-count">
+              {importTotal > 0
+                ? `${importProcessed} / ${importTotal} records`
+                : "Preparing import..."}
+            </p>
             <p className="import-note">This may take a few minutes. Please wait.</p>
           </div>
         ) : (

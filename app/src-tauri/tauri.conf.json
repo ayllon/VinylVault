@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "VinylVault",
   "version": "0.1.0",
-  "identifier": "io.github.ayllon.app.vinylvault",
+  "identifier": "io.github.ayllon.vinylvault",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",

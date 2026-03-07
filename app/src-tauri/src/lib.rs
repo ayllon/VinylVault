@@ -6,11 +6,18 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
-use tauri::State;
+use tauri::{Emitter, State};
 
 #[derive(Clone)]
 struct AppState {
     db_pool: Pool<SqliteConnectionManager>,
+}
+
+#[derive(Serialize, Clone)]
+struct ImportProgressPayload {
+    processed: usize,
+    total: usize,
+    percent: f64,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -295,20 +302,48 @@ fn is_db_empty(state: State<AppState>) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn import_mdb(mdb_path: String, state: State<AppState>) -> Result<usize, String> {
-    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
-    
+async fn import_mdb(
+    mdb_path: String,
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<usize, String> {
     let db_path = resolve_db_path()?;
     let covers_dir = db_path
         .parent()
         .ok_or("Invalid database path")?;
     let covers_path = covers_dir.join("covers");
-    
-    mdb_import::import_mdb_impl(
-        std::path::Path::new(&mdb_path),
-        &conn,
-        &covers_path,
-    )
+
+    let pool = state.db_pool.clone();
+    let app_handle = app.clone();
+    let mdb_path_buf = PathBuf::from(mdb_path);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+
+        mdb_import::import_mdb_impl_with_progress(
+            &mdb_path_buf,
+            &conn,
+            &covers_path,
+            |processed, total| {
+                let percent = if total == 0 {
+                    0.0
+                } else {
+                    (processed as f64 / total as f64) * 100.0
+                };
+
+                let _ = app_handle.emit(
+                    "mdb-import-progress",
+                    ImportProgressPayload {
+                        processed,
+                        total,
+                        percent,
+                    },
+                );
+            },
+        )
+    })
+    .await
+    .map_err(|e| format!("Import task failed: {}", e))?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -362,6 +362,7 @@ body {
 }
 .btn-delete:hover {
     background-color: #9b2c2c;
+}
 
 /* Import progress feedback */
 .import-progress {
@@ -375,6 +376,37 @@ body {
 .import-progress p {
     margin: 0;
     font-size: 16px;
+}
+
+.progress-track {
+    appearance: none;
+    -webkit-appearance: none;
+    width: min(460px, 70vw);
+    height: 14px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.progress-track::-webkit-progress-bar {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.progress-track::-webkit-progress-value {
+    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
+    border-radius: 999px;
+    transition: width 0.2s ease;
+}
+
+.progress-track::-moz-progress-bar {
+    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
+    border-radius: 999px;
+}
+
+.import-count {
+    font-size: 14px !important;
+    color: #e2e8f0;
 }
 
 .import-note {
@@ -399,5 +431,4 @@ body {
     100% {
         transform: rotate(360deg);
     }
-}
 }

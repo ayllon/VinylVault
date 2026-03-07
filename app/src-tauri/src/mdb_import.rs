@@ -128,12 +128,16 @@ pub fn is_db_empty_impl(conn: &Connection) -> Result<bool, String> {
     Ok(count == 0)
 }
 
-/// Import MDB file into SQLite database
-pub fn import_mdb_impl(
+/// Import MDB file into SQLite database and report row progress.
+pub fn import_mdb_impl_with_progress<F>(
     mdb_path: &Path,
     conn: &Connection,
     covers_dir: &Path,
-) -> Result<usize, String> {
+    mut on_progress: F,
+) -> Result<usize, String>
+where
+    F: FnMut(usize, usize),
+{
     // Check if DB is empty
     if !is_db_empty_impl(conn)? {
         return Err("Database is not empty. Import can only be done on an empty database.".to_string());
@@ -162,6 +166,9 @@ pub fn import_mdb_impl(
     result.warn_skipped("discos");
 
     let mut imported_count = 0;
+    let total_rows = result.rows.len();
+
+    on_progress(0, total_rows);
 
     // Find column indices
     let grupo_idx = table_def.columns.iter().position(|c| c.name == "GRUPO");
@@ -221,6 +228,11 @@ pub fn import_mdb_impl(
         }
 
         imported_count += 1;
+
+        // Emit frequent enough updates without spamming IPC for huge files.
+        if imported_count % 25 == 0 || imported_count == total_rows {
+            on_progress(imported_count, total_rows);
+        }
     }
 
     Ok(imported_count)
