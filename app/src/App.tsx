@@ -65,6 +65,11 @@ interface GroupsAndTitlesData {
   formatos: string[];
 }
 
+function getImageSrc(path: string | null | undefined): string {
+  if (!path) return "";
+  return convertFileSrc(path);
+}
+
 function App() {
   const { t } = useTranslation();
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
@@ -169,9 +174,9 @@ function App() {
       }
     };
 
-    window.addEventListener("keydown", handleEscape);
+    globalThis.addEventListener("keydown", handleEscape);
     return () => {
-      window.removeEventListener("keydown", handleEscape);
+      globalThis.removeEventListener("keydown", handleEscape);
     };
   }, [deleteTargetId]);
 
@@ -287,10 +292,7 @@ function App() {
     }
   }
 
-  function getImageSrc(path: string | null | undefined): string {
-    if (!path) return "";
-    return convertFileSrc(path);
-  }
+
 
   if (isDbEmpty === null) {
     return (
@@ -455,9 +457,9 @@ function App() {
             onChange={(e) =>
               currentRecord
                 ? setCurrentRecord({
-                    ...currentRecord,
-                    tracks: e.target.value,
-                  })
+                  ...currentRecord,
+                  tracks: e.target.value,
+                })
                 : null
             }
             onBlur={handleSave}
@@ -471,9 +473,9 @@ function App() {
             onChange={(e) =>
               currentRecord
                 ? setCurrentRecord({
-                    ...currentRecord,
-                    credits: e.target.value,
-                  })
+                  ...currentRecord,
+                  credits: e.target.value,
+                })
                 : null
             }
             onBlur={handleSave}
@@ -626,20 +628,11 @@ function App() {
       {deleteTargetId !== null && (
         <div
           className="confirm-dialog-backdrop"
-          onClick={() => setDeleteTargetId(null)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setDeleteTargetId(null);
-            }
-          }}
-          role="presentation"
         >
-          <div
+          <dialog
             className="confirm-dialog"
-            role="dialog"
-            aria-modal="true"
+            open
             aria-labelledby="delete-dialog-title"
-            onClick={(e) => e.stopPropagation()}
           >
             <h3 id="delete-dialog-title">{t("actions.confirm_delete")}</h3>
             <p>{t("actions.delete_sure")}</p>
@@ -654,7 +647,7 @@ function App() {
                 {t("actions.delete")}
               </button>
             </div>
-          </div>
+          </dialog>
         </div>
       )}
     </div>
