@@ -96,7 +96,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           mkdir -p artifacts
-          find app/src-tauri/target/release/bundle/deb -name "*.deb" | sort | tail -1 | xargs -I {} cp {} artifacts/
+          find app/src-tauri/target/release/bundle/rpm -name "*.rpm" | sort | tail -1 | xargs -I {} cp {} artifacts/
           ls -la artifacts/
 
       - name: Find and copy artifacts (Windows)
@@ -138,22 +138,10 @@ jobs:
             
             Build date: ${{ github.event.head_commit.timestamp }}
             Commit: ${{ github.sha }}
-            
-            ### Installation
-            
-            **Linux (Debian/Ubuntu):**
-            ```bash
-            wget https://github.com/${{ github.repository }}/releases/download/nightly/vinylvault_amd64.deb
-            sudo dpkg -i vinylvault_amd64.deb
-            ```
-            
-            **Windows:**
-            Download and run the `.msi` installer below.
-            
-            ---
+
             These builds are automatically generated and may be unstable.
           files: |
-            artifacts/**/*.deb
+            artifacts/**/*.rpm
             artifacts/**/*.msi
           prerelease: true
           draft: false
