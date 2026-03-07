@@ -187,7 +187,9 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
     let mut stmt = conn
         .prepare(
             "SELECT rowid, artist, title, format, year, style, country, tracks, credits, notes, cd_cover_path, lp_cover_path 
-         FROM albums ORDER BY rowid LIMIT 1 OFFSET ?",
+         FROM albums
+         ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
+         LIMIT 1 OFFSET ?",
         )
         .map_err(|e| e.to_string())?;
 
@@ -261,8 +263,21 @@ fn find_record_offset_impl(
     };
 
     let query = format!(
-        "SELECT (SELECT COUNT(*) FROM albums AS d2 WHERE d2.rowid < albums.rowid) AS offset 
-         FROM albums WHERE {} = ? ORDER BY rowid LIMIT 1",
+        "WITH ordered AS (
+            SELECT
+                rowid,
+                artist,
+                title,
+                ROW_NUMBER() OVER (
+                    ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
+                ) - 1 AS offset
+            FROM albums
+        )
+        SELECT offset
+        FROM ordered
+        WHERE {} = ?1
+        ORDER BY offset
+        LIMIT 1",
         col
     );
 
@@ -280,10 +295,24 @@ fn add_record_impl(conn: &Connection) -> Result<u32, String> {
         [],
     )
     .map_err(|e| e.to_string())?;
-    let count: u32 = conn
-        .query_row("SELECT COUNT(*) FROM albums", [], |row| row.get(0))
-        .unwrap_or(1);
-    Ok(count - 1)
+
+    let inserted_rowid = conn.last_insert_rowid();
+    let offset: u32 = conn
+        .query_row(
+            "WITH ordered AS (
+                SELECT rowid,
+                       ROW_NUMBER() OVER (
+                           ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
+                       ) - 1 AS offset
+                FROM albums
+            )
+            SELECT offset FROM ordered WHERE rowid = ?1",
+            [inserted_rowid],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(offset)
 }
 
 fn update_record_impl(conn: &Connection, record: Record) -> Result<(), String> {
@@ -491,6 +520,37 @@ mod tests {
         assert_eq!(record.id, 1);
         assert_eq!(record.artist, Some("Nuevo Grupo".to_string()));
         assert_eq!(record.title, Some("Nuevo Disco".to_string()));
+    }
+
+    #[test]
+    fn test_get_record_uses_lexicographical_order() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["ZZZ Group", "Alpha"],
+        )
+        .expect("Insert failed");
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["AAA Group", "Zulu"],
+        )
+        .expect("Insert failed");
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["AAA Group", "Beta"],
+        )
+        .expect("Insert failed");
+
+        let first = get_record_impl(&conn, 0).expect("Get failed");
+        let second = get_record_impl(&conn, 1).expect("Get failed");
+        let third = get_record_impl(&conn, 2).expect("Get failed");
+
+        assert_eq!(first.artist, Some("AAA Group".to_string()));
+        assert_eq!(first.title, Some("Beta".to_string()));
+        assert_eq!(second.artist, Some("AAA Group".to_string()));
+        assert_eq!(second.title, Some("Zulu".to_string()));
+        assert_eq!(third.artist, Some("ZZZ Group".to_string()));
+        assert_eq!(third.title, Some("Alpha".to_string()));
     }
 
     #[test]

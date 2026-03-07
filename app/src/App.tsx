@@ -59,6 +59,12 @@ interface ImportProgressPayload {
   percent: number;
 }
 
+interface GroupsAndTitlesData {
+  groups: string[];
+  titles: string[];
+  formatos: string[];
+}
+
 function App() {
   const { t } = useTranslation();
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
@@ -104,12 +110,12 @@ function App() {
 
   const loadComboboxes = useCallback(async () => {
     try {
-      const [g, t, f] = await invoke<[string[], string[], string[]]>(
+      const data = await invoke<GroupsAndTitlesData>(
         "get_groups_and_titles",
       );
-      setGroups(g);
-      setTitles(t);
-      setFormats(f);
+      setGroups(data.groups);
+      setTitles(data.titles);
+      setFormats(data.formatos);
     } catch (e) {
       console.error(e);
     }
