@@ -330,54 +330,36 @@ body {
     font-weight: 600;
 }
 
-/* Responsive constraints */
-@media (max-width: 900px) {
-    .form-body {
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: auto;
-        overflow-y: auto;
-    }
-    .pais {
-        grid-column: 2 / 3;
-    }
-    .estilo {
-        grid-column: 1 / 2;
-    }
-    .formato {
-        grid-column: 2 / 3;
-    }
-    .observ {
-        grid-column: 1 / 3;
-    }
+.nav-action-buttons {
+    margin-left: auto;
+    display: flex;
+    gap: 10px;
+}
 
-    .canciones {
-        grid-column: 1 / 3;
-        grid-row: auto;
-        height: 250px;
-    }
-    .creditos {
-        grid-column: 1 / 3;
-        grid-row: auto;
-        height: 250px;
-    }
+.btn-add {
+    background-color: #276749;
+    color: white;
+    padding: 4px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+.btn-add:hover {
+    background-color: #1f4e39;
+}
 
-    .photo-cd-wrapper {
-        grid-column: 1 / 2;
-        grid-row: auto;
-        max-width: 300px;
-        justify-self: center;
-        width: 100%;
-    }
-    .photo-lp-wrapper {
-        grid-column: 2 / 3;
-        grid-row: auto;
-        max-width: 300px;
-        justify-self: center;
-        width: 100%;
-    }
-
-    .action-bar {
-        grid-column: 1 / 3;
-        grid-row: auto;
-    }
+.btn-delete {
+    background-color: #c53030;
+    color: white;
+    padding: 4px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+.btn-delete:hover {
+    background-color: #9b2c2c;
 }

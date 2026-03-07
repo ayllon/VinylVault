@@ -1,8 +1,40 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import Select from "react-select";
+import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
 import "./App.css";
+
+type SelectOption = { value: string; label: string };
+
+const SELECT_STYLES: StylesConfig<SelectOption, false> = {
+  control: (base: CSSObjectWithLabel) => ({
+    ...base,
+    border: "1px solid #cbd5e0",
+    boxShadow: "none",
+    ":hover": {
+      border: "1px solid #cbd5e0",
+    },
+  }),
+  menu: (base: CSSObjectWithLabel) => ({
+    ...base,
+    zIndex: 10000,
+  }),
+  menuPortal: (base: CSSObjectWithLabel) => ({
+    ...base,
+    zIndex: 10000,
+  }),
+};
+
+const SELECT_THEME = (theme: Theme): Theme => ({
+  ...theme,
+  borderRadius: 4,
+  colors: {
+    ...theme.colors,
+    primary: "#3182ce",
+    primary25: "#ebf8ff",
+  },
+});
 
 interface RecordData {
   id: number;
@@ -19,11 +51,10 @@ interface RecordData {
 
 function sanitizeKey(text: string | null | undefined): string {
   if (!text) return "";
-  let val = text.replace(/^["'\s]+|["'\s]+$/g, "");
-  let normalized = val.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
-  let lower = normalized.toLowerCase();
-  let sanitized = lower.replace(/[^a-z0-9]/g, "_");
-  sanitized = sanitized.replace(/^_+|_+$/g, "");
+  const val = text.replace(/^["'\s]+|["'\s]+$/g, "");
+  const normalized = val.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const lower = normalized.toLowerCase();
+  const sanitized = lower.replace(/[^a-z0-9]/g, "_").replace(/^_+|_+$/g, "");
   return sanitized;
 }
 
@@ -37,15 +68,42 @@ function App() {
   const [titles, setTitles] = useState<string[]>([]);
   const [formatos, setFormatos] = useState<string[]>([]);
 
+  const loadSeqRef = useRef(0);
+
   const [searchGrupo, setSearchGrupo] = useState<string>("");
   const [searchDisco, setSearchDisco] = useState<string>("");
+
+  const loadTotalRecords = useCallback(async () => {
+    if (!dbPath) return;
+    try {
+      const total = await invoke<number>("get_total_records", { dbPath });
+      setTotalRecords(total);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [dbPath]);
+
+  const loadComboboxes = useCallback(async () => {
+    if (!dbPath) return;
+    try {
+      const [g, t, f] = await invoke<[string[], string[], string[]]>(
+        "get_groups_and_titles",
+        { dbPath },
+      );
+      setGroups(g);
+      setTitles(t);
+      setFormatos(f);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [dbPath]);
 
   useEffect(() => {
     if (dbPath) {
       loadTotalRecords();
       loadComboboxes();
     }
-  }, [dbPath]);
+  }, [dbPath, loadTotalRecords, loadComboboxes]);
 
   useEffect(() => {
     if (dbPath && totalRecords > 0) {
@@ -69,39 +127,19 @@ function App() {
     }
   }
 
-  async function loadTotalRecords() {
-    if (!dbPath) return;
-    try {
-      const total = await invoke<number>("get_total_records", { dbPath });
-      setTotalRecords(total);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function loadComboboxes() {
-    if (!dbPath) return;
-    try {
-      const [g, t, f] = await invoke<[string[], string[], string[]]>(
-        "get_groups_and_titles",
-        { dbPath },
-      );
-      setGroups(g);
-      setTitles(t);
-      setFormatos(f);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
   async function loadRecord(offset: number) {
     if (!dbPath) return;
+    const seq = ++loadSeqRef.current;
     try {
       const rec = await invoke<RecordData>("get_record", { offset, dbPath });
-      setCurrentRecord(rec);
+      if (seq === loadSeqRef.current) {
+        setCurrentRecord(rec);
+      }
     } catch (e) {
-      console.error(e);
-      setCurrentRecord(null);
+      if (seq === loadSeqRef.current) {
+        console.error(e);
+        setCurrentRecord(null);
+      }
     }
   }
 
@@ -138,7 +176,7 @@ function App() {
     if (!dbPath || !currentRecord) return;
     try {
       await invoke("update_record", { record: currentRecord, dbPath });
-      loadComboboxes();
+      await loadComboboxes();
     } catch (e) {
       console.error("Auto-save failed:", e);
     }
@@ -163,7 +201,7 @@ function App() {
       await invoke("delete_record", { id: currentRecord.id, dbPath });
       await loadTotalRecords();
       setRecordIndex(0);
-      loadComboboxes();
+      await loadComboboxes();
     } catch (e) {
       console.error(e);
       alert("Error deleting record: " + e);
@@ -274,47 +312,25 @@ function App() {
                 : null
             }
             onChange={(option) => {
-              if (currentRecord) {
-                setCurrentRecord({
+              if (currentRecord && dbPath) {
+                const updated = {
                   ...currentRecord,
                   formato: option?.value || "",
-                });
-                handleSave();
+                };
+                setCurrentRecord(updated);
+                invoke("update_record", { record: updated, dbPath })
+                  .then(() => loadComboboxes())
+                  .catch((e) => console.error("Auto-save failed:", e));
               }
             }}
             isSearchable
             placeholder="Select or type formato..."
-            styles={{
-              control: (base: any) => ({
-                ...base,
-                border: "1px solid #cbd5e0",
-                boxShadow: "none",
-                ":hover": {
-                  border: "1px solid #cbd5e0",
-                },
-              }),
-              menu: (base: any) => ({
-                ...base,
-                zIndex: 10000,
-              }),
-              menuPortal: (base: any) => ({
-                ...base,
-                zIndex: 10000,
-              }),
-            }}
+            styles={SELECT_STYLES}
             menuPortalTarget={document.body}
             menuPosition="fixed"
             menuPlacement="auto"
             menuShouldBlockScroll={true}
-            theme={(theme: any) => ({
-              ...theme,
-              borderRadius: 4,
-              colors: {
-                ...theme.colors,
-                primary: "#3182ce",
-                primary25: "#ebf8ff",
-              },
-            })}
+            theme={SELECT_THEME}
           />
         </div>
 
@@ -367,7 +383,7 @@ function App() {
         <div className="photo-cd-wrapper">
           <div className="photo-label">Portada CD</div>
           <div className="photo-box">
-            {currentRecord && (
+            {currentRecord && getImagePath("cd") && (
               <img
                 src={getImagePath("cd")}
                 onError={(e) => (e.currentTarget.style.display = "none")}
@@ -380,7 +396,7 @@ function App() {
         <div className="photo-lp-wrapper">
           <div className="photo-label">Portada LP</div>
           <div className="photo-box">
-            {currentRecord && (
+            {currentRecord && getImagePath("lp") && (
               <img
                 src={getImagePath("lp")}
                 onError={(e) => (e.currentTarget.style.display = "none")}
@@ -418,37 +434,12 @@ function App() {
                 isSearchable
                 isClearable
                 placeholder="Search groups..."
-                styles={{
-                  control: (base: any) => ({
-                    ...base,
-                    border: "1px solid #cbd5e0",
-                    boxShadow: "none",
-                    ":hover": {
-                      border: "1px solid #cbd5e0",
-                    },
-                  }),
-                  menu: (base: any) => ({
-                    ...base,
-                    zIndex: 10000,
-                  }),
-                  menuPortal: (base: any) => ({
-                    ...base,
-                    zIndex: 10000,
-                  }),
-                }}
+                styles={SELECT_STYLES}
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
                 menuPlacement="auto"
                 menuShouldBlockScroll={true}
-                theme={(theme: any) => ({
-                  ...theme,
-                  borderRadius: 4,
-                  colors: {
-                    ...theme.colors,
-                    primary: "#3182ce",
-                    primary25: "#ebf8ff",
-                  },
-                })}
+                theme={SELECT_THEME}
               />
             </div>
 
@@ -478,43 +469,16 @@ function App() {
                 isSearchable
                 isClearable
                 placeholder="Search discs..."
-                styles={{
-                  control: (base: any) => ({
-                    ...base,
-                    border: "1px solid #cbd5e0",
-                    boxShadow: "none",
-                    ":hover": {
-                      border: "1px solid #cbd5e0",
-                    },
-                  }),
-                  menu: (base: any) => ({
-                    ...base,
-                    zIndex: 10000,
-                  }),
-                  menuPortal: (base: any) => ({
-                    ...base,
-                    zIndex: 10000,
-                  }),
-                }}
+                styles={SELECT_STYLES}
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
                 menuPlacement="auto"
                 menuShouldBlockScroll={true}
-                theme={(theme: any) => ({
-                  ...theme,
-                  borderRadius: 4,
-                  colors: {
-                    ...theme.colors,
-                    primary: "#3182ce",
-                    primary25: "#ebf8ff",
-                  },
-                })}
+                theme={SELECT_THEME}
               />
             </div>
 
-            <div style={{ alignSelf: "flex-end", paddingBottom: "2px" }}>
-              {/* Search button removed - search happens automatically on selection */}
-            </div>
+
           </div>
         </div>
       </div>
@@ -546,28 +510,11 @@ function App() {
           ⏭
         </button>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: "10px" }}>
-          <button
-            onClick={handleAdd}
-            style={{
-              backgroundColor: "#48bb78",
-              color: "white",
-              padding: "4px 12px",
-              border: "none",
-              fontWeight: "bold",
-            }}
-          >
+        <div className="nav-action-buttons">
+          <button onClick={handleAdd} className="btn-add">
             ➕ Añadir
           </button>
-          <button
-            onClick={handleDelete}
-            style={{
-              backgroundColor: "#f56565",
-              color: "white",
-              padding: "4px 12px",
-              border: "none",
-              fontWeight: "bold",
-            }}
+          <button onClick={handleDelete} className="btn-delete"
           >
             🗑 Borrar
           </button>

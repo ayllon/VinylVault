@@ -97,7 +97,11 @@ fn find_record_offset(column: String, value: String, db_path: String) -> Result<
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     // Safety: column must be GRUPO or TITULO
-    let col = if column == "GRUPO" { "GRUPO" } else { "TITULO" };
+    let col = match column.as_str() {
+        "GRUPO" => "GRUPO",
+        "TITULO" => "TITULO",
+        _ => return Err(format!("Invalid column: {}", column)),
+    };
 
     let query = format!(
         "SELECT (SELECT COUNT(*) FROM discos AS d2 WHERE d2.rowid < discos.rowid) AS offset 
