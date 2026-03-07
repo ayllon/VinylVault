@@ -480,6 +480,7 @@ function App() {
             {currentRecord?.portada_cd_path && (
               <img
                 src={getImageSrc(currentRecord.portada_cd_path)}
+                alt={`${currentRecord.titulo || "Album"} - CD Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
@@ -493,6 +494,7 @@ function App() {
             {currentRecord?.portada_lp_path && (
               <img
                 src={getImageSrc(currentRecord.portada_lp_path)}
+                alt={`${currentRecord.titulo || "Album"} - LP Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
@@ -619,6 +621,12 @@ function App() {
         <div
           className="confirm-dialog-backdrop"
           onClick={() => setDeleteTargetId(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setDeleteTargetId(null);
+            }
+          }}
+          role="presentation"
         >
           <div
             className="confirm-dialog"
