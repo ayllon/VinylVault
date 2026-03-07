@@ -1,0 +1,156 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test-rust:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # 1.15.3
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src-tauri/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('app/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+            ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev
+
+      - name: Run Rust tests
+        working-directory: app/src-tauri
+        run: cargo test --verbose
+
+      - name: Run Rust tests with all features
+        working-directory: app/src-tauri
+        run: cargo test --all-features --verbose
+
+  rust-quality:
+    name: Rust Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # 1.15.3
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src-tauri/target
+          key: ${{ runner.os }}-cargo-quality-${{ hashFiles('app/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-quality-
+            ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev
+
+      - name: Run cargo fmt
+        working-directory: app/src-tauri
+        run: cargo fmt -- --check
+
+      - name: Run clippy
+        working-directory: app/src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  lint-frontend:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+
+      - name: Cache Node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/node_modules
+          key: ${{ runner.os }}-node-lint-${{ hashFiles('app/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-lint-
+            ${{ runner.os }}-node-
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Run ESLint
+        working-directory: app
+        run: npm run lint
+
+      - name: TypeScript type checking
+        working-directory: app
+        run: npx tsc -b --noEmit
+
+  test-python:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('scripts/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        working-directory: scripts
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Check Python script syntax
+        working-directory: scripts
+        run: python -m py_compile mdb2sqlite.py
