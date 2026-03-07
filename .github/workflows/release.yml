@@ -68,7 +68,7 @@ jobs:
         run: |
           BUILD_ID=$(date +%Y%m%d)
           echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
-          VERSION=$(node -e "console.log(require('./app/src-tauri/tauri.conf.json').version)")
+          VERSION=$(grep '"version"' app/src-tauri/tauri.conf.json | head -1 | cut -d'"' -f4)
           MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
           NEW_VERSION="${MAJOR_MINOR}.${BUILD_ID}"
           echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV

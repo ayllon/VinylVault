@@ -12,7 +12,7 @@ CARGO_TOML="$PROJECT_ROOT/app/src-tauri/Cargo.toml"
 PACKAGE_JSON="$PROJECT_ROOT/app/package.json"
 
 # Get the base version from tauri.conf.json
-BASE_VERSION=$(grep -oP '"version":\s*"\K[^"]+' "$TAURI_CONF" | head -1)
+BASE_VERSION=$(grep '"version"' "$TAURI_CONF" | head -1 | cut -d'"' -f4)
 
 if [ $# -eq 0 ]; then
     # No suffix provided, just display current version
