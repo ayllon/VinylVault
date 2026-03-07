@@ -48,6 +48,8 @@ interface RecordData {
   canciones: string | null;
   creditos: string | null;
   observ: string | null;
+  portada_cd_path: string | null;
+  portada_lp_path: string | null;
 }
 
 interface ImportProgressPayload {
@@ -56,22 +58,12 @@ interface ImportProgressPayload {
   percent: number;
 }
 
-function sanitizeKey(text: string | null | undefined): string {
-  if (!text) return "";
-  const val = text.replaceAll(/^["'\s]+|["'\s]+$/g, "");
-  const normalized = val.normalize("NFKD").replaceAll(/[\u0300-\u036f]/g, "");
-  const lower = normalized.toLowerCase();
-  const sanitized = lower.replaceAll(/[^a-z0-9]/g, "_").replaceAll(/^_+|_+$/g, "");
-  return sanitized;
-}
-
 function App() {
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [importProcessed, setImportProcessed] = useState<number>(0);
   const [importTotal, setImportTotal] = useState<number>(0);
   const [importPercent, setImportPercent] = useState<number>(0);
-  const [coversDir, setCoversDir] = useState<string>("");
   const [recordIndex, setRecordIndex] = useState<number>(0);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [currentRecord, setCurrentRecord] = useState<RecordData | null>(null);
@@ -91,10 +83,6 @@ function App() {
       try {
         const empty = await invoke<boolean>("is_db_empty");
         setIsDbEmpty(empty);
-        if (!empty) {
-          const dir = await invoke<string>("get_covers_dir");
-          setCoversDir(dir);
-        }
       } catch (e) {
         console.error("Failed to check DB:", e);
       }
@@ -177,8 +165,6 @@ function App() {
         try {
           const count = await invoke<number>("import_mdb", { mdbPath: selected });
           alert(`Successfully imported ${count} records!`);
-          const dir = await invoke<string>("get_covers_dir");
-          setCoversDir(dir);
           setIsDbEmpty(false);
           setRecordIndex(0);
         } catch (e) {
@@ -271,18 +257,9 @@ function App() {
     }
   }
 
-  function getImagePath(type: "cd" | "lp"): string {
-    if (!coversDir || !currentRecord || !currentRecord.titulo) return "";
-
-    const key = sanitizeKey(currentRecord.titulo);
-    if (key.length < 2) return "";
-
-    const nested = key.substring(0, 2);
-    const fileName = `${key}_${type}.jpeg`;
-    const separator = coversDir.includes("\\") ? "\\" : "/";
-
-    const fullPath = `${coversDir}${separator}${nested}${separator}${fileName}`;
-    return convertFileSrc(fullPath);
+  function getImageSrc(path: string | null | undefined): string {
+    if (!path) return "";
+    return convertFileSrc(path);
   }
 
   if (isDbEmpty === null) {
@@ -476,9 +453,9 @@ function App() {
         <div className="photo-cd-wrapper">
           <div className="photo-label">Portada CD</div>
           <div className="photo-box">
-            {currentRecord && getImagePath("cd") && (
+            {currentRecord?.portada_cd_path && (
               <img
-                src={getImagePath("cd")}
+                src={getImageSrc(currentRecord.portada_cd_path)}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
@@ -489,9 +466,9 @@ function App() {
         <div className="photo-lp-wrapper">
           <div className="photo-label">Portada LP</div>
           <div className="photo-box">
-            {currentRecord && getImagePath("lp") && (
+            {currentRecord?.portada_lp_path && (
               <img
-                src={getImagePath("lp")}
+                src={getImageSrc(currentRecord.portada_lp_path)}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />

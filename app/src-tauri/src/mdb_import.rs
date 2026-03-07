@@ -1,43 +1,10 @@
+use crate::sanitize::sanitize_key;
 use image::{ImageBuffer, ImageFormat, Rgb};
 use jetdb::{read_catalog, read_table_def, read_table_rows, ObjectType, PageReader, Value};
 use rusqlite::Connection;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use unicode_normalization::UnicodeNormalization;
-use unidecode::unidecode;
-
-/// Sanitize a string to be used as a filesystem-safe key.
-/// Converts to lowercase, removes diacritics, transliterates to ASCII, and replaces non-alphanumeric with underscores.
-pub fn sanitize_key(text: &str) -> String {
-    // Normalize unicode (NFD decomposition)
-    let normalized: String = text.nfkd().collect();
-    
-    // Remove diacritical marks
-    let without_diacritics: String = normalized
-        .chars()
-        .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
-        .collect();
-    
-    // Transliterate to ASCII (handles Cyrillic, Greek, etc.)
-    let ascii = unidecode(&without_diacritics);
-    
-    // Convert to lowercase and replace non-alphanumeric with underscore
-    let sanitized: String = ascii
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect();
-    
-    // Collapse multiple underscores to single underscore
-    let collapsed = sanitized
-        .split('_')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("_");
-    
-    collapsed
-}
 
 /// Extract a DIB image from an MDB OLE Blob and return as ImageBuffer
 fn extract_ole_image(ole_data: &[u8]) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, String> {
@@ -100,11 +67,7 @@ fn save_cover_image(
     let img = extract_ole_image(image_data)?;
 
     // Create nested directory (first 2 chars of key)
-    let prefix = if key.len() >= 2 {
-        &key[..2]
-    } else {
-        key
-    };
+    let prefix = if key.len() >= 2 { &key[..2] } else { key };
     let nested_dir = covers_dir.join(prefix);
     fs::create_dir_all(&nested_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
 
@@ -140,15 +103,18 @@ where
 {
     // Check if DB is empty
     if !is_db_empty_impl(conn)? {
-        return Err("Database is not empty. Import can only be done on an empty database.".to_string());
+        return Err(
+            "Database is not empty. Import can only be done on an empty database.".to_string(),
+        );
     }
 
     // Open MDB file
-    let mut reader = PageReader::open(mdb_path).map_err(|e| format!("Failed to open MDB: {}", e))?;
+    let mut reader =
+        PageReader::open(mdb_path).map_err(|e| format!("Failed to open MDB: {}", e))?;
 
     // Read catalog to find the discos table
-    let catalog = read_catalog(&mut reader)
-        .map_err(|e| format!("Failed to read catalog: {}", e))?;
+    let catalog =
+        read_catalog(&mut reader).map_err(|e| format!("Failed to read catalog: {}", e))?;
 
     let discos_entry = catalog
         .iter()
@@ -180,8 +146,14 @@ where
     let canciones_idx = table_def.columns.iter().position(|c| c.name == "CANCIONES");
     let creditos_idx = table_def.columns.iter().position(|c| c.name == "CREDITOS");
     let observ_idx = table_def.columns.iter().position(|c| c.name == "OBSERV");
-    let cd_idx = table_def.columns.iter().position(|c| c.name == "Portada CD");
-    let lp_idx = table_def.columns.iter().position(|c| c.name == "Portada LP");
+    let cd_idx = table_def
+        .columns
+        .iter()
+        .position(|c| c.name == "Portada CD");
+    let lp_idx = table_def
+        .columns
+        .iter()
+        .position(|c| c.name == "Portada LP");
 
     // Iterate through records
     for row in result.rows {
@@ -196,13 +168,8 @@ where
         let creditos = creditos_idx.and_then(|i| get_string_value(&row[i]));
         let observ = observ_idx.and_then(|i| get_string_value(&row[i]));
 
-        // Insert into SQLite
-        conn.execute(
-            "INSERT INTO discos (GRUPO, TITULO, FORMATO, ANIO, ESTILO, PAIS, CANCIONES, CREDITOS, OBSERV) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            rusqlite::params![grupo, titulo, formato, anio, estilo, pais, canciones, creditos, observ],
-        )
-        .map_err(|e| format!("Failed to insert record: {}", e))?;
+        let mut portada_cd_path: Option<String> = None;
+        let mut portada_lp_path: Option<String> = None;
 
         // Extract cover images if present
         if let Some(titulo_val) = &titulo {
@@ -212,7 +179,9 @@ where
             if let Some(cd_idx) = cd_idx {
                 if let Some(cd_data) = get_binary_value(&row[cd_idx]) {
                     if !cd_data.is_empty() {
-                        let _ = save_cover_image(cd_data, covers_dir, &key, "cd");
+                        if let Ok(path) = save_cover_image(cd_data, covers_dir, &key, "cd") {
+                            portada_cd_path = Some(path.to_string_lossy().to_string());
+                        }
                     }
                 }
             }
@@ -221,11 +190,34 @@ where
             if let Some(lp_idx) = lp_idx {
                 if let Some(lp_data) = get_binary_value(&row[lp_idx]) {
                     if !lp_data.is_empty() {
-                        let _ = save_cover_image(lp_data, covers_dir, &key, "lp");
+                        if let Ok(path) = save_cover_image(lp_data, covers_dir, &key, "lp") {
+                            portada_lp_path = Some(path.to_string_lossy().to_string());
+                        }
                     }
                 }
             }
         }
+
+        // Insert into SQLite
+        conn.execute(
+            "INSERT INTO discos (
+                GRUPO, TITULO, FORMATO, ANIO, ESTILO, PAIS, CANCIONES, CREDITOS, OBSERV, PORTADA_CD_PATH, PORTADA_LP_PATH
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            rusqlite::params![
+                grupo,
+                titulo,
+                formato,
+                anio,
+                estilo,
+                pais,
+                canciones,
+                creditos,
+                observ,
+                portada_cd_path,
+                portada_lp_path
+            ],
+        )
+        .map_err(|e| format!("Failed to insert record: {}", e))?;
 
         imported_count += 1;
 
@@ -271,29 +263,14 @@ mod tests {
                 PAIS TEXT,
                 CANCIONES TEXT,
                 CREDITOS TEXT,
-                OBSERV TEXT
+                OBSERV TEXT,
+                PORTADA_CD_PATH TEXT,
+                PORTADA_LP_PATH TEXT
             )",
             [],
         )
         .expect("failed to create discos table");
         conn
-    }
-
-    #[test]
-    fn test_sanitize_key() {
-        assert_eq!(sanitize_key("Hello World"), "hello_world");
-        assert_eq!(sanitize_key("Café"), "cafe");
-        assert_eq!(sanitize_key("Ñoño"), "nono");
-        assert_eq!(sanitize_key("Test@#$%Test"), "test_test");
-        assert_eq!(sanitize_key("___test___"), "test");
-    }
-
-    #[test]
-    fn test_sanitize_key_unicode() {
-        assert_eq!(sanitize_key("Zürich"), "zurich");
-        assert_eq!(sanitize_key("São Paulo"), "sao_paulo");
-        // Cyrillic should be transliterated to Latin
-        assert_eq!(sanitize_key("Москва"), "moskva");
     }
 
     #[test]
@@ -355,5 +332,4 @@ mod tests {
         assert!(err.contains("Failed to open MDB"));
         assert_eq!(progress_calls, 0);
     }
-
 }

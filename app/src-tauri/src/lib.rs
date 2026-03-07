@@ -1,4 +1,5 @@
 mod mdb_import;
+mod sanitize;
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -7,6 +8,10 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
+
+const DB_SCHEMA_VERSION: &str = "1";
+const META_KEY_SCHEMA_VERSION: &str = "schema_version";
+const META_KEY_SOURCE_MDB_PATH: &str = "source_mdb_path";
 
 #[derive(Clone)]
 struct AppState {
@@ -32,6 +37,8 @@ pub struct Record {
     pub canciones: Option<String>,
     pub creditos: Option<String>,
     pub observ: Option<String>,
+    pub portada_cd_path: Option<String>,
+    pub portada_lp_path: Option<String>,
 }
 
 // Helper: resolve DB path from env or default
@@ -75,7 +82,9 @@ fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
                 PAIS TEXT,
                 CANCIONES TEXT,
                 CREDITOS TEXT,
-                OBSERV TEXT
+                OBSERV TEXT,
+                PORTADA_CD_PATH TEXT,
+                PORTADA_LP_PATH TEXT
             )",
             [],
         )
@@ -88,6 +97,40 @@ fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
+    ensure_meta_schema(&conn)?;
+    set_meta_if_missing(&conn, META_KEY_SCHEMA_VERSION, DB_SCHEMA_VERSION)?;
+
+    Ok(())
+}
+
+fn ensure_meta_schema(conn: &Connection) -> Result<(), String> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn set_meta_if_missing(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT OR IGNORE INTO meta (key, value) VALUES (?1, ?2)",
+        rusqlite::params![key, value],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn upsert_meta(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO meta (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![key, value],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -104,7 +147,9 @@ fn init_test_schema(conn: &Connection) -> Result<(), String> {
             PAIS TEXT,
             CANCIONES TEXT,
             CREDITOS TEXT,
-            OBSERV TEXT
+            OBSERV TEXT,
+            PORTADA_CD_PATH TEXT,
+            PORTADA_LP_PATH TEXT
         )",
         [],
     )
@@ -115,6 +160,9 @@ fn init_test_schema(conn: &Connection) -> Result<(), String> {
 
     conn.execute("CREATE INDEX idx_discos_titulo ON discos (TITULO)", [])
         .map_err(|e| e.to_string())?;
+
+    ensure_meta_schema(conn)?;
+    set_meta_if_missing(conn, META_KEY_SCHEMA_VERSION, DB_SCHEMA_VERSION)?;
 
     Ok(())
 }
@@ -131,7 +179,7 @@ fn get_total_records_impl(conn: &Connection) -> Result<u32, String> {
 fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT rowid, GRUPO, TITULO, FORMATO, ANIO, ESTILO, PAIS, CANCIONES, CREDITOS, OBSERV 
+            "SELECT rowid, GRUPO, TITULO, FORMATO, ANIO, ESTILO, PAIS, CANCIONES, CREDITOS, OBSERV, PORTADA_CD_PATH, PORTADA_LP_PATH 
          FROM discos ORDER BY rowid LIMIT 1 OFFSET ?",
         )
         .map_err(|e| e.to_string())?;
@@ -149,6 +197,8 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
             canciones: row.get(7).unwrap_or(None),
             creditos: row.get(8).unwrap_or(None),
             observ: row.get(9).unwrap_or(None),
+            portada_cd_path: row.get(10).unwrap_or(None),
+            portada_lp_path: row.get(11).unwrap_or(None),
         };
         Ok(record)
     } else {
@@ -189,7 +239,11 @@ fn get_groups_and_titles_impl(
     Ok((groups, titles, formatos))
 }
 
-fn find_record_offset_impl(conn: &Connection, column: String, value: String) -> Result<u32, String> {
+fn find_record_offset_impl(
+    conn: &Connection,
+    column: String,
+    value: String,
+) -> Result<u32, String> {
     // Safety: column must be GRUPO or TITULO
     let col = match column.as_str() {
         "GRUPO" => "GRUPO",
@@ -252,7 +306,9 @@ fn get_record(offset: u32, state: State<AppState>) -> Result<Record, String> {
 }
 
 #[tauri::command]
-fn get_groups_and_titles(state: State<AppState>) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
+fn get_groups_and_titles(
+    state: State<AppState>,
+) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
     get_groups_and_titles_impl(&conn)
 }
@@ -308,9 +364,7 @@ async fn import_mdb(
     app: tauri::AppHandle,
 ) -> Result<usize, String> {
     let db_path = resolve_db_path()?;
-    let covers_dir = db_path
-        .parent()
-        .ok_or("Invalid database path")?;
+    let covers_dir = db_path.parent().ok_or("Invalid database path")?;
     let covers_path = covers_dir.join("covers");
 
     let pool = state.db_pool.clone();
@@ -320,7 +374,7 @@ async fn import_mdb(
     tauri::async_runtime::spawn_blocking(move || {
         let conn = pool.get().map_err(|e| e.to_string())?;
 
-        mdb_import::import_mdb_impl_with_progress(
+        let imported_count = mdb_import::import_mdb_impl_with_progress(
             &mdb_path_buf,
             &conn,
             &covers_path,
@@ -340,7 +394,15 @@ async fn import_mdb(
                     },
                 );
             },
-        )
+        )?;
+
+        upsert_meta(
+            &conn,
+            META_KEY_SOURCE_MDB_PATH,
+            mdb_path_buf.to_string_lossy().as_ref(),
+        )?;
+
+        Ok(imported_count)
     })
     .await
     .map_err(|e| format!("Import task failed: {}", e))?
