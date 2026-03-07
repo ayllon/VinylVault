@@ -31,6 +31,9 @@ Rust is compiled by the Tauri CLI; no separate `cargo build` step is needed for 
 
 ## Conventions
 
+### Communication
+- For now, prefer Spanish messages in user-facing text unless the user explicitly asks for English.
+
 ### Frontend (TypeScript / React)
 - **TypeScript strict mode** is on; no unused variables or parameters allowed.
 - **Plain CSS** only — no Tailwind, no CSS modules. Styles live in `App.css` and `index.css`.

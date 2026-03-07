@@ -76,6 +76,7 @@ function App() {
 
   const [searchGrupo, setSearchGrupo] = useState<string>("");
   const [searchDisco, setSearchDisco] = useState<string>("");
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Check if DB is empty on mount
   useEffect(() => {
@@ -151,6 +152,21 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (deleteTargetId === null) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDeleteTargetId(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [deleteTargetId]);
+
   async function handleImport() {
     try {
       const selected = await open({
@@ -164,19 +180,19 @@ function App() {
         setIsImporting(true);
         try {
           const count = await invoke<number>("import_mdb", { mdbPath: selected });
-          alert(`Successfully imported ${count} records!`);
+          alert(`Se importaron correctamente ${count} registros.`);
           setIsDbEmpty(false);
           setRecordIndex(0);
         } catch (e) {
           console.error(e);
-          alert("Error importing database: " + e);
+          alert("Error al importar la base de datos: " + e);
         } finally {
           setIsImporting(false);
         }
       }
     } catch (e) {
       console.error(e);
-      alert("Error opening file dialog");
+      alert("Error al abrir el selector de archivos");
     }
   }
 
@@ -217,7 +233,7 @@ function App() {
       });
       setRecordIndex(offset);
     } catch {
-      alert("Record not found!");
+      alert("No se encontro el registro.");
     }
   }
 
@@ -239,21 +255,27 @@ function App() {
       setRecordIndex(newIndex);
     } catch (e) {
       console.error(e);
-      alert("Error adding record: " + e);
+      alert("Error al anadir registro: " + e);
     }
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!currentRecord) return;
-    if (!confirm("Are you sure you want to delete this record?")) return;
+    setDeleteTargetId(currentRecord.id);
+  }
+
+  async function confirmDelete() {
+    if (deleteTargetId === null) return;
+
     try {
-      await invoke("delete_record", { id: currentRecord.id });
+      await invoke("delete_record", { id: deleteTargetId });
       await loadTotalRecords();
       setRecordIndex(0);
       await loadComboboxes();
+      setDeleteTargetId(null);
     } catch (e) {
       console.error(e);
-      alert("Error deleting record: " + e);
+      alert("Error al borrar registro: " + e);
     }
   }
 
@@ -266,7 +288,7 @@ function App() {
     return (
       <div className="auth-overlay">
         <h2>Registro Musical</h2>
-        <p>Loading...</p>
+        <p>Cargando...</p>
       </div>
     );
   }
@@ -278,7 +300,7 @@ function App() {
         {isImporting ? (
           <div className="import-progress">
             <div className="spinner"></div>
-            <p>Importing database...</p>
+            <p>Importando base de datos...</p>
             <progress
               className="progress-track"
               max={100}
@@ -286,16 +308,16 @@ function App() {
             ></progress>
             <p className="import-count">
               {importTotal > 0
-                ? `${importProcessed} / ${importTotal} records`
-                : "Preparing import..."}
+                ? `${importProcessed} / ${importTotal} registros`
+                : "Preparando importacion..."}
             </p>
-            <p className="import-note">This may take a few minutes. Please wait.</p>
+            <p className="import-note">Esto puede tardar unos minutos. Espera, por favor.</p>
           </div>
         ) : (
           <>
-            <p>Database is empty. Import an existing MDB file to get started.</p>
+            <p>La base de datos esta vacia. Importa un archivo MDB para empezar.</p>
             <button onClick={handleImport}>
-              Import MDB File
+              Importar archivo MDB
             </button>
           </>
         )}
@@ -394,7 +416,7 @@ function App() {
               }
             }}
             isSearchable
-            placeholder="Select or type formato..."
+            placeholder="Selecciona o escribe formato..."
             styles={SELECT_STYLES}
             menuPortalTarget={document.body}
             menuPosition="fixed"
@@ -503,7 +525,7 @@ function App() {
                 }}
                 isSearchable
                 isClearable
-                placeholder="Search groups..."
+                placeholder="Buscar grupos..."
                 styles={SELECT_STYLES}
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
@@ -538,7 +560,7 @@ function App() {
                 }}
                 isSearchable
                 isClearable
-                placeholder="Search discs..."
+                placeholder="Buscar discos..."
                 styles={SELECT_STYLES}
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
@@ -590,6 +612,35 @@ function App() {
           </button>
         </div>
       </div>
+
+      {deleteTargetId !== null && (
+        <div
+          className="confirm-dialog-backdrop"
+          onClick={() => setDeleteTargetId(null)}
+        >
+          <div
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="delete-dialog-title">Confirmar borrado</h3>
+            <p>Estas seguro de que quieres borrar este registro?</p>
+            <div className="confirm-dialog-actions">
+              <button
+                className="confirm-cancel"
+                onClick={() => setDeleteTargetId(null)}
+              >
+                Cancelar
+              </button>
+              <button className="confirm-delete" onClick={confirmDelete}>
+                Borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
