@@ -83,10 +83,10 @@ fn save_cover_image(
     Ok(cover_path)
 }
 
-/// Check if the database is empty (no records in discos table)
+/// Check if the database is empty (no records in albums table)
 pub fn is_db_empty_impl(conn: &Connection) -> Result<bool, String> {
     let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM discos", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM albums", [], |row| row.get(0))
         .map_err(|e| e.to_string())?;
     Ok(count == 0)
 }
@@ -200,8 +200,8 @@ where
 
         // Insert into SQLite
         conn.execute(
-            "INSERT INTO discos (
-                GRUPO, TITULO, FORMATO, ANIO, ESTILO, PAIS, CANCIONES, CREDITOS, OBSERV, PORTADA_CD_PATH, PORTADA_LP_PATH
+            "INSERT INTO albums (
+                artist, title, format, year, style, country, tracks, credits, notes, cd_cover_path, lp_cover_path
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             rusqlite::params![
                 grupo,
@@ -254,22 +254,22 @@ mod tests {
     fn setup_test_db() -> Connection {
         let conn = Connection::open(":memory:").expect("failed to open in-memory db");
         conn.execute(
-            "CREATE TABLE discos (
-                GRUPO TEXT,
-                TITULO TEXT,
-                FORMATO TEXT,
-                ANIO TEXT,
-                ESTILO TEXT,
-                PAIS TEXT,
-                CANCIONES TEXT,
-                CREDITOS TEXT,
-                OBSERV TEXT,
-                PORTADA_CD_PATH TEXT,
-                PORTADA_LP_PATH TEXT
+            "CREATE TABLE albums (
+                artist TEXT,
+                title TEXT,
+                format TEXT,
+                year TEXT,
+                style TEXT,
+                country TEXT,
+                tracks TEXT,
+                credits TEXT,
+                notes TEXT,
+                cd_cover_path TEXT,
+                lp_cover_path TEXT
             )",
             [],
         )
-        .expect("failed to create discos table");
+        .expect("failed to create albums table");
         conn
     }
 
@@ -284,7 +284,7 @@ mod tests {
     fn test_is_db_empty_impl_false_when_table_has_rows() {
         let conn = setup_test_db();
         conn.execute(
-            "INSERT INTO discos (GRUPO, TITULO) VALUES (?1, ?2)",
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
             rusqlite::params!["Grupo", "Disco"],
         )
         .expect("insert failed");
@@ -297,7 +297,7 @@ mod tests {
     fn test_import_mdb_rejects_non_empty_database_before_opening_mdb() {
         let conn = setup_test_db();
         conn.execute(
-            "INSERT INTO discos (GRUPO, TITULO) VALUES (?1, ?2)",
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
             rusqlite::params!["Grupo", "Disco"],
         )
         .expect("insert failed");

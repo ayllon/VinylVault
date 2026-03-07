@@ -157,8 +157,8 @@ body {
     height: 100%;
 }
 
-.field-group.canciones textarea,
-.field-group.creditos textarea {
+.field-group.tracks textarea,
+.field-group.credits textarea {
     overflow-y: auto;
 }
 
@@ -192,37 +192,37 @@ body {
 }
 
 /* Specific Grid Placements */
-.grupo {
+.artist {
     grid-column: 1 / 2;
 }
-.pais {
+.country {
     grid-column: 2 / 4;
 }
 
-.disco {
+.album {
     grid-column: 1 / 2;
 }
-.anio {
+.year {
     grid-column: 2 / 3;
 }
-.estilo {
+.style {
     grid-column: 3 / 4;
 }
-.formato {
+.format {
     grid-column: 4 / 5;
 }
 
-.observ {
+.notes {
     grid-column: 1 / 5;
 }
 /* Dropped the absolute red font for observation */
 
-.canciones {
+.tracks {
     grid-column: 1 / 2;
     grid-row: 4 / 5;
     height: 100%;
 }
-.creditos {
+.credits {
     grid-column: 2 / 3;
     grid-row: 4 / 5;
     height: 100%;

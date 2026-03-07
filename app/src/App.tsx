@@ -40,17 +40,17 @@ const SELECT_THEME = (theme: Theme): Theme => ({
 
 interface RecordData {
   id: number;
-  grupo: string | null;
-  titulo: string | null;
-  formato: string | null;
-  anio: string | null;
-  estilo: string | null;
-  pais: string | null;
-  canciones: string | null;
-  creditos: string | null;
-  observ: string | null;
-  portada_cd_path: string | null;
-  portada_lp_path: string | null;
+  artist: string | null;
+  title: string | null;
+  format: string | null;
+  year: string | null;
+  style: string | null;
+  country: string | null;
+  tracks: string | null;
+  credits: string | null;
+  notes: string | null;
+  cd_cover_path: string | null;
+  lp_cover_path: string | null;
 }
 
 interface ImportProgressPayload {
@@ -72,12 +72,12 @@ function App() {
 
   const [groups, setGroups] = useState<string[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
-  const [formatos, setFormatos] = useState<string[]>([]);
+  const [formats, setFormats] = useState<string[]>([]);
 
   const loadSeqRef = useRef(0);
 
-  const [searchGrupo, setSearchGrupo] = useState<string>("");
-  const [searchDisco, setSearchDisco] = useState<string>("");
+  const [searchArtist, setSearchArtist] = useState<string>("");
+  const [searchAlbum, setSearchAlbum] = useState<string>("");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Check if DB is empty on mount
@@ -109,7 +109,7 @@ function App() {
       );
       setGroups(g);
       setTitles(t);
-      setFormatos(f);
+      setFormats(f);
     } catch (e) {
       console.error(e);
     }
@@ -218,12 +218,12 @@ function App() {
       let col = column;
       let val = value;
       if (!col && !val) {
-        if (searchGrupo) {
-          col = "GRUPO";
-          val = searchGrupo;
-        } else if (searchDisco) {
-          col = "TITULO";
-          val = searchDisco;
+        if (searchArtist) {
+          col = "artist";
+          val = searchArtist;
+        } else if (searchAlbum) {
+          col = "title";
+          val = searchAlbum;
         } else {
           return;
         }
@@ -330,86 +330,86 @@ function App() {
   return (
     <div className="form-container">
       <div className="form-body">
-        <div className="field-group grupo">
+        <div className="field-group artist">
           <label>{t("fields.group")}:</label>
           <input
             type="text"
-            value={currentRecord?.grupo || ""}
+            value={currentRecord?.artist || ""}
             onChange={(e) =>
               currentRecord
-                ? setCurrentRecord({ ...currentRecord, grupo: e.target.value })
+                ? setCurrentRecord({ ...currentRecord, artist: e.target.value })
                 : null
             }
             onBlur={handleSave}
           />
         </div>
-        <div className="field-group pais">
+        <div className="field-group country">
           <label>{t("fields.country")}:</label>
           <input
             type="text"
-            value={currentRecord?.pais || ""}
+            value={currentRecord?.country || ""}
             onChange={(e) =>
               currentRecord
-                ? setCurrentRecord({ ...currentRecord, pais: e.target.value })
+                ? setCurrentRecord({ ...currentRecord, country: e.target.value })
                 : null
             }
             onBlur={handleSave}
           />
         </div>
 
-        <div className="field-group disco">
+        <div className="field-group album">
           <label>{t("fields.album")}:</label>
           <input
             type="text"
-            value={currentRecord?.titulo || ""}
+            value={currentRecord?.title || ""}
             onChange={(e) =>
               currentRecord
-                ? setCurrentRecord({ ...currentRecord, titulo: e.target.value })
+                ? setCurrentRecord({ ...currentRecord, title: e.target.value })
                 : null
             }
             onBlur={handleSave}
           />
         </div>
-        <div className="field-group anio">
+        <div className="field-group year">
           <label>{t("fields.year")}:</label>
           <input
             type="text"
-            value={currentRecord?.anio || ""}
+            value={currentRecord?.year || ""}
             onChange={(e) =>
               currentRecord
-                ? setCurrentRecord({ ...currentRecord, anio: e.target.value })
+                ? setCurrentRecord({ ...currentRecord, year: e.target.value })
                 : null
             }
             onBlur={handleSave}
           />
         </div>
-        <div className="field-group estilo">
+        <div className="field-group style">
           <label>{t("fields.style")}:</label>
           <input
             type="text"
-            value={currentRecord?.estilo || ""}
+            value={currentRecord?.style || ""}
             onChange={(e) =>
               currentRecord
-                ? setCurrentRecord({ ...currentRecord, estilo: e.target.value })
+                ? setCurrentRecord({ ...currentRecord, style: e.target.value })
                 : null
             }
             onBlur={handleSave}
           />
         </div>
-        <div className="field-group formato">
+        <div className="field-group format">
           <label>{t("fields.format")}:</label>
           <Select
-            options={formatos.map((f) => ({ value: f, label: f }))}
+            options={formats.map((f) => ({ value: f, label: f }))}
             value={
-              currentRecord?.formato
-                ? { value: currentRecord.formato, label: currentRecord.formato }
+              currentRecord?.format
+                ? { value: currentRecord.format, label: currentRecord.format }
                 : null
             }
             onChange={(option) => {
               if (currentRecord) {
                 const updated = {
                   ...currentRecord,
-                  formato: option?.value || "",
+                  format: option?.value || "",
                 };
                 setCurrentRecord(updated);
                 invoke("update_record", { record: updated })
@@ -428,29 +428,29 @@ function App() {
           />
         </div>
 
-        <div className="field-group observ">
+        <div className="field-group notes">
           <label>{t("fields.observations")}:</label>
           <input
             type="text"
-            value={currentRecord?.observ || ""}
+            value={currentRecord?.notes || ""}
             onChange={(e) =>
               currentRecord
-                ? setCurrentRecord({ ...currentRecord, observ: e.target.value })
+                ? setCurrentRecord({ ...currentRecord, notes: e.target.value })
                 : null
             }
             onBlur={handleSave}
           />
         </div>
 
-        <div className="field-group canciones">
+        <div className="field-group tracks">
           <label>{t("fields.songs")}</label>
           <textarea
-            value={currentRecord?.canciones || ""}
+            value={currentRecord?.tracks || ""}
             onChange={(e) =>
               currentRecord
                 ? setCurrentRecord({
                     ...currentRecord,
-                    canciones: e.target.value,
+                    tracks: e.target.value,
                   })
                 : null
             }
@@ -458,15 +458,15 @@ function App() {
           ></textarea>
         </div>
 
-        <div className="field-group creditos">
+        <div className="field-group credits">
           <label>{t("fields.credits")}</label>
           <textarea
-            value={currentRecord?.creditos || ""}
+            value={currentRecord?.credits || ""}
             onChange={(e) =>
               currentRecord
                 ? setCurrentRecord({
                     ...currentRecord,
-                    creditos: e.target.value,
+                    credits: e.target.value,
                   })
                 : null
             }
@@ -477,10 +477,10 @@ function App() {
         <div className="photo-cd-wrapper">
           <div className="photo-label">{t("fields.cd_cover")}</div>
           <div className="photo-box">
-            {currentRecord?.portada_cd_path && (
+            {currentRecord?.cd_cover_path && (
               <img
-                src={getImageSrc(currentRecord.portada_cd_path)}
-                alt={`${currentRecord.titulo || "Album"} - CD Cover`}
+                src={getImageSrc(currentRecord.cd_cover_path)}
+                alt={`${currentRecord.title || "Album"} - CD Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
@@ -491,10 +491,10 @@ function App() {
         <div className="photo-lp-wrapper">
           <div className="photo-label">{t("fields.lp_cover")}</div>
           <div className="photo-box">
-            {currentRecord?.portada_lp_path && (
+            {currentRecord?.lp_cover_path && (
               <img
-                src={getImageSrc(currentRecord.portada_lp_path)}
-                alt={`${currentRecord.titulo || "Album"} - LP Cover`}
+                src={getImageSrc(currentRecord.lp_cover_path)}
+                alt={`${currentRecord.title || "Album"} - LP Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
@@ -509,22 +509,22 @@ function App() {
               <Select
                 options={groups.map((g) => ({ value: g, label: g }))}
                 value={
-                  searchGrupo
-                    ? { value: searchGrupo, label: searchGrupo }
+                  searchArtist
+                    ? { value: searchArtist, label: searchArtist }
                     : null
                 }
                 onChange={(option) => {
                   const newValue = option?.value || "";
-                  setSearchGrupo(newValue);
-                  setSearchDisco("");
+                  setSearchArtist(newValue);
+                  setSearchAlbum("");
                   if (newValue) {
                     // Search immediately with the selected value
-                    handleSearchClick("GRUPO", newValue);
+                    handleSearchClick("artist", newValue);
                   }
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && searchGrupo) {
-                    handleSearchClick("GRUPO", searchGrupo);
+                  if (e.key === "Enter" && searchArtist) {
+                    handleSearchClick("artist", searchArtist);
                   }
                 }}
                 isSearchable
@@ -544,22 +544,22 @@ function App() {
               <Select
                 options={titles.map((t) => ({ value: t, label: t }))}
                 value={
-                  searchDisco
-                    ? { value: searchDisco, label: searchDisco }
+                  searchAlbum
+                    ? { value: searchAlbum, label: searchAlbum }
                     : null
                 }
                 onChange={(option) => {
                   const newValue = option?.value || "";
-                  setSearchDisco(newValue);
-                  setSearchGrupo("");
+                  setSearchAlbum(newValue);
+                  setSearchArtist("");
                   if (newValue) {
                     // Search immediately with the selected value
-                    handleSearchClick("TITULO", newValue);
+                    handleSearchClick("title", newValue);
                   }
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && searchDisco) {
-                    handleSearchClick("TITULO", searchDisco);
+                  if (e.key === "Enter" && searchAlbum) {
+                    handleSearchClick("title", searchAlbum);
                   }
                 }}
                 isSearchable

@@ -28,17 +28,17 @@ struct ImportProgressPayload {
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Record {
     pub id: i64,
-    pub grupo: Option<String>,
-    pub titulo: Option<String>,
-    pub formato: Option<String>,
-    pub anio: Option<String>,
-    pub estilo: Option<String>,
-    pub pais: Option<String>,
-    pub canciones: Option<String>,
-    pub creditos: Option<String>,
-    pub observ: Option<String>,
-    pub portada_cd_path: Option<String>,
-    pub portada_lp_path: Option<String>,
+    pub artist: Option<String>,
+    pub title: Option<String>,
+    pub format: Option<String>,
+    pub year: Option<String>,
+    pub style: Option<String>,
+    pub country: Option<String>,
+    pub tracks: Option<String>,
+    pub credits: Option<String>,
+    pub notes: Option<String>,
+    pub cd_cover_path: Option<String>,
+    pub lp_cover_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -72,7 +72,7 @@ fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
     // Check if table exists; if not, create schema
     let table_exists: bool = conn
         .query_row(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='discos'",
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='albums'",
             [],
             |_| Ok(true),
         )
@@ -80,27 +80,27 @@ fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
 
     if !table_exists {
         conn.execute(
-            "CREATE TABLE discos (
-                GRUPO TEXT,
-                TITULO TEXT,
-                FORMATO TEXT,
-                ANIO TEXT,
-                ESTILO TEXT,
-                PAIS TEXT,
-                CANCIONES TEXT,
-                CREDITOS TEXT,
-                OBSERV TEXT,
-                PORTADA_CD_PATH TEXT,
-                PORTADA_LP_PATH TEXT
+            "CREATE TABLE albums (
+                artist TEXT,
+                title TEXT,
+                format TEXT,
+                year TEXT,
+                style TEXT,
+                country TEXT,
+                tracks TEXT,
+                credits TEXT,
+                notes TEXT,
+                cd_cover_path TEXT,
+                lp_cover_path TEXT
             )",
             [],
         )
         .map_err(|e| e.to_string())?;
 
-        conn.execute("CREATE INDEX idx_discos_grupo ON discos (GRUPO)", [])
+        conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
             .map_err(|e| e.to_string())?;
 
-        conn.execute("CREATE INDEX idx_discos_titulo ON discos (TITULO)", [])
+        conn.execute("CREATE INDEX idx_albums_title ON albums (title)", [])
             .map_err(|e| e.to_string())?;
     }
 
@@ -145,27 +145,27 @@ fn upsert_meta(conn: &Connection, key: &str, value: &str) -> Result<(), String> 
 #[cfg(test)]
 fn init_test_schema(conn: &Connection) -> Result<(), String> {
     conn.execute(
-        "CREATE TABLE discos (
-            GRUPO TEXT,
-            TITULO TEXT,
-            FORMATO TEXT,
-            ANIO TEXT,
-            ESTILO TEXT,
-            PAIS TEXT,
-            CANCIONES TEXT,
-            CREDITOS TEXT,
-            OBSERV TEXT,
-            PORTADA_CD_PATH TEXT,
-            PORTADA_LP_PATH TEXT
+        "CREATE TABLE albums (
+            artist TEXT,
+            title TEXT,
+            format TEXT,
+            year TEXT,
+            style TEXT,
+            country TEXT,
+            tracks TEXT,
+            credits TEXT,
+            notes TEXT,
+            cd_cover_path TEXT,
+            lp_cover_path TEXT
         )",
         [],
     )
     .map_err(|e| e.to_string())?;
 
-    conn.execute("CREATE INDEX idx_discos_grupo ON discos (GRUPO)", [])
+    conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
         .map_err(|e| e.to_string())?;
 
-    conn.execute("CREATE INDEX idx_discos_titulo ON discos (TITULO)", [])
+    conn.execute("CREATE INDEX idx_albums_title ON albums (title)", [])
         .map_err(|e| e.to_string())?;
 
     ensure_meta_schema(conn)?;
@@ -178,7 +178,7 @@ fn init_test_schema(conn: &Connection) -> Result<(), String> {
 
 fn get_total_records_impl(conn: &Connection) -> Result<u32, String> {
     let count: u32 = conn
-        .query_row("SELECT COUNT(*) FROM discos", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM albums", [], |row| row.get(0))
         .map_err(|e| e.to_string())?;
     Ok(count)
 }
@@ -186,8 +186,8 @@ fn get_total_records_impl(conn: &Connection) -> Result<u32, String> {
 fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT rowid, GRUPO, TITULO, FORMATO, ANIO, ESTILO, PAIS, CANCIONES, CREDITOS, OBSERV, PORTADA_CD_PATH, PORTADA_LP_PATH 
-         FROM discos ORDER BY rowid LIMIT 1 OFFSET ?",
+            "SELECT rowid, artist, title, format, year, style, country, tracks, credits, notes, cd_cover_path, lp_cover_path 
+         FROM albums ORDER BY rowid LIMIT 1 OFFSET ?",
         )
         .map_err(|e| e.to_string())?;
 
@@ -195,17 +195,17 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
     if let Some(row) = rows.next().map_err(|e| e.to_string())? {
         let record = Record {
             id: row.get(0).unwrap_or(0),
-            grupo: row.get(1).unwrap_or(None),
-            titulo: row.get(2).unwrap_or(None),
-            formato: row.get(3).unwrap_or(None),
-            anio: row.get(4).unwrap_or(None),
-            estilo: row.get(5).unwrap_or(None),
-            pais: row.get(6).unwrap_or(None),
-            canciones: row.get(7).unwrap_or(None),
-            creditos: row.get(8).unwrap_or(None),
-            observ: row.get(9).unwrap_or(None),
-            portada_cd_path: row.get(10).unwrap_or(None),
-            portada_lp_path: row.get(11).unwrap_or(None),
+            artist: row.get(1).unwrap_or(None),
+            title: row.get(2).unwrap_or(None),
+            format: row.get(3).unwrap_or(None),
+            year: row.get(4).unwrap_or(None),
+            style: row.get(5).unwrap_or(None),
+            country: row.get(6).unwrap_or(None),
+            tracks: row.get(7).unwrap_or(None),
+            credits: row.get(8).unwrap_or(None),
+            notes: row.get(9).unwrap_or(None),
+            cd_cover_path: row.get(10).unwrap_or(None),
+            lp_cover_path: row.get(11).unwrap_or(None),
         };
         Ok(record)
     } else {
@@ -213,11 +213,9 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
     }
 }
 
-fn get_groups_and_titles_impl(
-    conn: &Connection,
-) -> Result<GroupsAndTitles, String> {
+fn get_groups_and_titles_impl(conn: &Connection) -> Result<GroupsAndTitles, String> {
     let mut groups = Vec::new();
-    let mut stmt = conn.prepare("SELECT DISTINCT GRUPO FROM discos WHERE GRUPO IS NOT NULL AND GRUPO != '' ORDER BY GRUPO").map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT DISTINCT artist FROM albums WHERE artist IS NOT NULL AND artist != '' ORDER BY artist").map_err(|e| e.to_string())?;
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows.next().map_err(|e| e.to_string())? {
         if let Ok(g) = row.get::<_, String>(0) {
@@ -226,7 +224,7 @@ fn get_groups_and_titles_impl(
     }
 
     let mut titles = Vec::new();
-    let mut stmt2 = conn.prepare("SELECT DISTINCT TITULO FROM discos WHERE TITULO IS NOT NULL AND TITULO != '' ORDER BY TITULO").map_err(|e| e.to_string())?;
+    let mut stmt2 = conn.prepare("SELECT DISTINCT title FROM albums WHERE title IS NOT NULL AND title != '' ORDER BY title").map_err(|e| e.to_string())?;
     let mut rows2 = stmt2.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows2.next().map_err(|e| e.to_string())? {
         if let Ok(t) = row.get::<_, String>(0) {
@@ -235,7 +233,7 @@ fn get_groups_and_titles_impl(
     }
 
     let mut formatos = Vec::new();
-    let mut stmt3 = conn.prepare("SELECT DISTINCT FORMATO FROM discos WHERE FORMATO IS NOT NULL AND FORMATO != '' ORDER BY FORMATO").map_err(|e| e.to_string())?;
+    let mut stmt3 = conn.prepare("SELECT DISTINCT format FROM albums WHERE format IS NOT NULL AND format != '' ORDER BY format").map_err(|e| e.to_string())?;
     let mut rows3 = stmt3.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows3.next().map_err(|e| e.to_string())? {
         if let Ok(f) = row.get::<_, String>(0) {
@@ -255,16 +253,16 @@ fn find_record_offset_impl(
     column: String,
     value: String,
 ) -> Result<u32, String> {
-    // Safety: column must be GRUPO or TITULO
+    // Safety: column must be artist or title
     let col = match column.as_str() {
-        "GRUPO" => "GRUPO",
-        "TITULO" => "TITULO",
+        "artist" => "artist",
+        "title" => "title",
         _ => return Err(format!("Invalid column: {}", column)),
     };
 
     let query = format!(
-        "SELECT (SELECT COUNT(*) FROM discos AS d2 WHERE d2.rowid < discos.rowid) AS offset 
-         FROM discos WHERE {} = ? ORDER BY rowid LIMIT 1",
+        "SELECT (SELECT COUNT(*) FROM albums AS d2 WHERE d2.rowid < albums.rowid) AS offset 
+         FROM albums WHERE {} = ? ORDER BY rowid LIMIT 1",
         col
     );
 
@@ -278,26 +276,26 @@ fn find_record_offset_impl(
 
 fn add_record_impl(conn: &Connection) -> Result<u32, String> {
     conn.execute(
-        "INSERT INTO discos (GRUPO, TITULO) VALUES ('Nuevo Grupo', 'Nuevo Disco')",
+        "INSERT INTO albums (artist, title) VALUES ('Nuevo Grupo', 'Nuevo Disco')",
         [],
     )
     .map_err(|e| e.to_string())?;
     let count: u32 = conn
-        .query_row("SELECT COUNT(*) FROM discos", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM albums", [], |row| row.get(0))
         .unwrap_or(1);
     Ok(count - 1)
 }
 
 fn update_record_impl(conn: &Connection, record: Record) -> Result<(), String> {
     conn.execute(
-        "UPDATE discos SET GRUPO=?1, TITULO=?2, FORMATO=?3, ANIO=?4, ESTILO=?5, PAIS=?6, CANCIONES=?7, CREDITOS=?8, OBSERV=?9 WHERE rowid=?10",
-        rusqlite::params![record.grupo, record.titulo, record.formato, record.anio, record.estilo, record.pais, record.canciones, record.creditos, record.observ, record.id]
+        "UPDATE albums SET artist=?1, title=?2, format=?3, year=?4, style=?5, country=?6, tracks=?7, credits=?8, notes=?9 WHERE rowid=?10",
+        rusqlite::params![record.artist, record.title, record.format, record.year, record.style, record.country, record.tracks, record.credits, record.notes, record.id]
     ).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 fn delete_record_impl(conn: &Connection, id: i64) -> Result<(), String> {
-    conn.execute("DELETE FROM discos WHERE rowid=?1", [id])
+    conn.execute("DELETE FROM albums WHERE rowid=?1", [id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -317,9 +315,7 @@ fn get_record(offset: u32, state: State<AppState>) -> Result<Record, String> {
 }
 
 #[tauri::command]
-fn get_groups_and_titles(
-    state: State<AppState>,
-) -> Result<GroupsAndTitles, String> {
+fn get_groups_and_titles(state: State<AppState>) -> Result<GroupsAndTitles, String> {
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
     get_groups_and_titles_impl(&conn)
 }
@@ -493,8 +489,8 @@ mod tests {
 
         let record = get_record_impl(&conn, 0).expect("Get failed");
         assert_eq!(record.id, 1);
-        assert_eq!(record.grupo, Some("Nuevo Grupo".to_string()));
-        assert_eq!(record.titulo, Some("Nuevo Disco".to_string()));
+        assert_eq!(record.artist, Some("Nuevo Grupo".to_string()));
+        assert_eq!(record.title, Some("Nuevo Disco".to_string()));
     }
 
     #[test]
@@ -503,11 +499,11 @@ mod tests {
         add_record_impl(&conn).expect("Add failed");
 
         let mut record = get_record_impl(&conn, 0).expect("Get failed");
-        record.grupo = Some("Updated Grupo".to_string());
+        record.artist = Some("Updated Grupo".to_string());
         update_record_impl(&conn, record).expect("Update failed");
 
         let updated = get_record_impl(&conn, 0).expect("Get failed");
-        assert_eq!(updated.grupo, Some("Updated Grupo".to_string()));
+        assert_eq!(updated.artist, Some("Updated Grupo".to_string()));
     }
 
     #[test]
@@ -527,12 +523,12 @@ mod tests {
         let conn = setup_test_db();
         add_record_impl(&conn).expect("Add failed");
 
-        // Update with a recognizable grupo
+        // Update with a recognizable artist
         let mut record = get_record_impl(&conn, 0).expect("Get failed");
-        record.grupo = Some("Test Banda".to_string());
+        record.artist = Some("Test Banda".to_string());
         update_record_impl(&conn, record).expect("Update failed");
 
-        let offset = find_record_offset_impl(&conn, "GRUPO".to_string(), "Test Banda".to_string())
+        let offset = find_record_offset_impl(&conn, "artist".to_string(), "Test Banda".to_string())
             .expect("Find failed");
         assert_eq!(offset, 0);
     }
