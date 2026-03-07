@@ -41,6 +41,13 @@ pub struct Record {
     pub portada_lp_path: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct GroupsAndTitles {
+    pub groups: Vec<String>,
+    pub titles: Vec<String>,
+    pub formatos: Vec<String>,
+}
+
 // Helper: resolve DB path from env or default
 fn resolve_db_path() -> Result<PathBuf, String> {
     if let Ok(path) = env::var("VINYLVAULT_DB_PATH") {
@@ -208,7 +215,7 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
 
 fn get_groups_and_titles_impl(
     conn: &Connection,
-) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
+) -> Result<GroupsAndTitles, String> {
     let mut groups = Vec::new();
     let mut stmt = conn.prepare("SELECT DISTINCT GRUPO FROM discos WHERE GRUPO IS NOT NULL AND GRUPO != '' ORDER BY GRUPO").map_err(|e| e.to_string())?;
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
@@ -236,7 +243,11 @@ fn get_groups_and_titles_impl(
         }
     }
 
-    Ok((groups, titles, formatos))
+    Ok(GroupsAndTitles {
+        groups,
+        titles,
+        formatos,
+    })
 }
 
 fn find_record_offset_impl(
@@ -308,7 +319,7 @@ fn get_record(offset: u32, state: State<AppState>) -> Result<Record, String> {
 #[tauri::command]
 fn get_groups_and_titles(
     state: State<AppState>,
-) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
+) -> Result<GroupsAndTitles, String> {
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
     get_groups_and_titles_impl(&conn)
 }
@@ -531,10 +542,10 @@ mod tests {
         let conn = setup_test_db();
         add_record_impl(&conn).expect("Add failed");
 
-        let (groups, titles, _) = get_groups_and_titles_impl(&conn).expect("Query failed");
-        assert_eq!(groups.len(), 1);
-        assert_eq!(groups[0], "Nuevo Grupo");
-        assert_eq!(titles.len(), 1);
-        assert_eq!(titles[0], "Nuevo Disco");
+        let result = get_groups_and_titles_impl(&conn).expect("Query failed");
+        assert_eq!(result.groups.len(), 1);
+        assert_eq!(result.groups[0], "Nuevo Grupo");
+        assert_eq!(result.titles.len(), 1);
+        assert_eq!(result.titles[0], "Nuevo Disco");
     }
 }
