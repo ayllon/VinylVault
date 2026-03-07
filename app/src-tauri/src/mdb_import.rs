@@ -311,7 +311,7 @@ mod tests {
         });
 
         assert!(result.is_err());
-        let err = result.err().expect("expected error");
+        let err = result.expect_err("expected error");
         assert!(err.contains("Database is not empty"));
         assert_eq!(progress_calls, 0);
     }
@@ -328,7 +328,7 @@ mod tests {
         });
 
         assert!(result.is_err());
-        let err = result.err().expect("expected error");
+        let err = result.expect_err("expected error");
         assert!(err.contains("Failed to open MDB"));
         assert_eq!(progress_calls, 0);
     }
