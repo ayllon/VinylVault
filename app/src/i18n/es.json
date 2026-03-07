@@ -1,0 +1,51 @@
+{
+  "app_title": "Registro Musical",
+  "loading": "Cargando...",
+  "empty_db": "La base de datos está vacía. Importa un archivo MDB para empezar.",
+  "import_mdb_button": "Importar archivo MDB",
+  "importing": "Importando base de datos...",
+  "preparing_import": "Preparando importación...",
+  "import_count": "{{processed}} / {{total}} registros",
+  "import_wait": "Esto puede tardar unos minutos. Espera, por favor.",
+  "import_success": "Se importaron correctamente {{count}} registros.",
+  "import_error": "Error al importar la base de datos: {{error}}",
+  "file_dialog_error": "Error al abrir el selector de archivos",
+  "record_not_found": "No se encontró el registro.",
+  "add_error": "Error al añadir registro: {{error}}",
+  "delete_error": "Error al borrar registro: {{error}}",
+
+  "fields": {
+    "group": "Grupo",
+    "country": "País",
+    "album": "Disco",
+    "year": "Año",
+    "style": "Estilo",
+    "format": "Formato",
+    "observations": "OBSERV",
+    "songs": "CANCIONES",
+    "credits": "CREDITOS",
+    "cd_cover": "Portada CD",
+    "lp_cover": "Portada LP"
+  },
+
+  "search": {
+    "by_group": "Buscar por grupo",
+    "by_album": "Buscar por disco",
+    "group_placeholder": "Buscar grupos...",
+    "album_placeholder": "Buscar discos...",
+    "format_placeholder": "Selecciona o escribe formato..."
+  },
+
+  "record": {
+    "singular": "Registro",
+    "of": "de"
+  },
+
+  "actions": {
+    "add": "Añadir",
+    "delete": "Borrar",
+    "cancel": "Cancelar",
+    "confirm_delete": "Confirmar borrado",
+    "delete_sure": "¿Estás seguro de que quieres borrar este registro?"
+  }
+}

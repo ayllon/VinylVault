@@ -31,11 +31,19 @@ Rust is compiled by the Tauri CLI; no separate `cargo build` step is needed for 
 
 ## Conventions
 
-### Communication
-- For now, prefer Spanish messages in user-facing text unless the user explicitly asks for English.
+### Communication & i18n
+- **All user-facing text must go through the i18n system** — never hardcode messages in the UI.
+- The app supports **English (en)** and **Spanish (es)**, with Spanish as the default.
+- **How to add translations:**
+  1. Add the key to both `app/src/i18n/es.json` and `app/src/i18n/en.json`
+  2. Use `const { t } = useTranslation()` in components
+  3. Reference keys via `t('key.name')` or with interpolation: `t('key', { var: value })`
+- **Translation structure:** Keys are organized hierarchically (e.g., `fields.group`, `actions.delete`, `search.by_album`)
+- See `I18N_GUIDE.md` in the project root for detailed i18n documentation and examples.
 
 ### Frontend (TypeScript / React)
 - **TypeScript strict mode** is on; no unused variables or parameters allowed.
+- **Internationalization:** Uses `i18next` and `react-i18next` for multi-language support (ES/EN).
 - **Plain CSS** only — no Tailwind, no CSS modules. Styles live in `App.css` and `index.css`.
 - **No component splitting yet** — the entire UI is in `App.tsx`. Keep additions in-file unless the component becomes clearly self-contained.
 - Use `react-select` (v5) for searchable dropdowns; already wired up.

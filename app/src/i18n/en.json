@@ -1,0 +1,51 @@
+{
+  "app_title": "Vinyl Vault",
+  "loading": "Loading...",
+  "empty_db": "The database is empty. Import an MDB file to get started.",
+  "import_mdb_button": "Import MDB File",
+  "importing": "Importing database...",
+  "preparing_import": "Preparing import...",
+  "import_count": "{{processed}} / {{total}} records",
+  "import_wait": "This may take a few minutes. Please wait.",
+  "import_success": "Successfully imported {{count}} records.",
+  "import_error": "Error importing database: {{error}}",
+  "file_dialog_error": "Error opening file dialog",
+  "record_not_found": "Record not found.",
+  "add_error": "Error adding record: {{error}}",
+  "delete_error": "Error deleting record: {{error}}",
+
+  "fields": {
+    "group": "Group",
+    "country": "Country",
+    "album": "Album",
+    "year": "Year",
+    "style": "Style",
+    "format": "Format",
+    "observations": "Observations",
+    "songs": "Songs",
+    "credits": "Credits",
+    "cd_cover": "CD Cover",
+    "lp_cover": "LP Cover"
+  },
+
+  "search": {
+    "by_group": "Search by group",
+    "by_album": "Search by album",
+    "group_placeholder": "Search groups...",
+    "album_placeholder": "Search albums...",
+    "format_placeholder": "Select or type format..."
+  },
+
+  "record": {
+    "singular": "Record",
+    "of": "of"
+  },
+
+  "actions": {
+    "add": "Add",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "confirm_delete": "Confirm delete",
+    "delete_sure": "Are you sure you want to delete this record?"
+  }
+}

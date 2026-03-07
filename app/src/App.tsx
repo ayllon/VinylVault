@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -59,6 +60,7 @@ interface ImportProgressPayload {
 }
 
 function App() {
+  const { t } = useTranslation();
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [importProcessed, setImportProcessed] = useState<number>(0);
@@ -180,19 +182,19 @@ function App() {
         setIsImporting(true);
         try {
           const count = await invoke<number>("import_mdb", { mdbPath: selected });
-          alert(`Se importaron correctamente ${count} registros.`);
+          alert(t("import_success", { count }));
           setIsDbEmpty(false);
           setRecordIndex(0);
         } catch (e) {
           console.error(e);
-          alert("Error al importar la base de datos: " + e);
+          alert(t("import_error", { error: e }));
         } finally {
           setIsImporting(false);
         }
       }
     } catch (e) {
       console.error(e);
-      alert("Error al abrir el selector de archivos");
+      alert(t("file_dialog_error"));
     }
   }
 
@@ -255,7 +257,7 @@ function App() {
       setRecordIndex(newIndex);
     } catch (e) {
       console.error(e);
-      alert("Error al anadir registro: " + e);
+      alert(t("add_error", { error: e }));
     }
   }
 
@@ -275,7 +277,7 @@ function App() {
       setDeleteTargetId(null);
     } catch (e) {
       console.error(e);
-      alert("Error al borrar registro: " + e);
+      alert(t("delete_error", { error: e }));
     }
   }
 
@@ -287,8 +289,8 @@ function App() {
   if (isDbEmpty === null) {
     return (
       <div className="auth-overlay">
-        <h2>Registro Musical</h2>
-        <p>Cargando...</p>
+        <h2>{t("app_title")}</h2>
+        <p>{t("loading")}</p>
       </div>
     );
   }
@@ -296,11 +298,11 @@ function App() {
   if (isDbEmpty) {
     return (
       <div className="auth-overlay">
-        <h2>Registro Musical</h2>
+        <h2>{t("app_title")}</h2>
         {isImporting ? (
           <div className="import-progress">
             <div className="spinner"></div>
-            <p>Importando base de datos...</p>
+            <p>{t("importing")}</p>
             <progress
               className="progress-track"
               max={100}
@@ -308,16 +310,16 @@ function App() {
             ></progress>
             <p className="import-count">
               {importTotal > 0
-                ? `${importProcessed} / ${importTotal} registros`
-                : "Preparando importacion..."}
+                ? t("import_count", { processed: importProcessed, total: importTotal })
+                : t("preparing_import")}
             </p>
-            <p className="import-note">Esto puede tardar unos minutos. Espera, por favor.</p>
+            <p className="import-note">{t("import_wait")}</p>
           </div>
         ) : (
           <>
-            <p>La base de datos esta vacia. Importa un archivo MDB para empezar.</p>
+            <p>{t("empty_db")}</p>
             <button onClick={handleImport}>
-              Importar archivo MDB
+              {t("import_mdb_button")}
             </button>
           </>
         )}
@@ -329,7 +331,7 @@ function App() {
     <div className="form-container">
       <div className="form-body">
         <div className="field-group grupo">
-          <label>Grupo:</label>
+          <label>{t("fields.group")}:</label>
           <input
             type="text"
             value={currentRecord?.grupo || ""}
@@ -342,7 +344,7 @@ function App() {
           />
         </div>
         <div className="field-group pais">
-          <label>Pais:</label>
+          <label>{t("fields.country")}:</label>
           <input
             type="text"
             value={currentRecord?.pais || ""}
@@ -356,7 +358,7 @@ function App() {
         </div>
 
         <div className="field-group disco">
-          <label>Disco:</label>
+          <label>{t("fields.album")}:</label>
           <input
             type="text"
             value={currentRecord?.titulo || ""}
@@ -369,7 +371,7 @@ function App() {
           />
         </div>
         <div className="field-group anio">
-          <label>Año:</label>
+          <label>{t("fields.year")}:</label>
           <input
             type="text"
             value={currentRecord?.anio || ""}
@@ -382,7 +384,7 @@ function App() {
           />
         </div>
         <div className="field-group estilo">
-          <label>Estilo:</label>
+          <label>{t("fields.style")}:</label>
           <input
             type="text"
             value={currentRecord?.estilo || ""}
@@ -395,7 +397,7 @@ function App() {
           />
         </div>
         <div className="field-group formato">
-          <label>Formato:</label>
+          <label>{t("fields.format")}:</label>
           <Select
             options={formatos.map((f) => ({ value: f, label: f }))}
             value={
@@ -416,7 +418,7 @@ function App() {
               }
             }}
             isSearchable
-            placeholder="Selecciona o escribe formato..."
+            placeholder={t("search.format_placeholder")}
             styles={SELECT_STYLES}
             menuPortalTarget={document.body}
             menuPosition="fixed"
@@ -427,7 +429,7 @@ function App() {
         </div>
 
         <div className="field-group observ">
-          <label>OBSERV:</label>
+          <label>{t("fields.observations")}:</label>
           <input
             type="text"
             value={currentRecord?.observ || ""}
@@ -441,7 +443,7 @@ function App() {
         </div>
 
         <div className="field-group canciones">
-          <label>CANCIONES</label>
+          <label>{t("fields.songs")}</label>
           <textarea
             value={currentRecord?.canciones || ""}
             onChange={(e) =>
@@ -457,7 +459,7 @@ function App() {
         </div>
 
         <div className="field-group creditos">
-          <label>CREDITOS</label>
+          <label>{t("fields.credits")}</label>
           <textarea
             value={currentRecord?.creditos || ""}
             onChange={(e) =>
@@ -473,7 +475,7 @@ function App() {
         </div>
 
         <div className="photo-cd-wrapper">
-          <div className="photo-label">Portada CD</div>
+          <div className="photo-label">{t("fields.cd_cover")}</div>
           <div className="photo-box">
             {currentRecord?.portada_cd_path && (
               <img
@@ -486,7 +488,7 @@ function App() {
         </div>
 
         <div className="photo-lp-wrapper">
-          <div className="photo-label">Portada LP</div>
+          <div className="photo-label">{t("fields.lp_cover")}</div>
           <div className="photo-box">
             {currentRecord?.portada_lp_path && (
               <img
@@ -501,7 +503,7 @@ function App() {
         <div className="action-bar">
           <div className="search-boxes">
             <div className="search-box" style={{ flex: 2 }}>
-              <label>Buscar por grupo</label>
+              <label>{t("search.by_group")}</label>
               <Select
                 options={groups.map((g) => ({ value: g, label: g }))}
                 value={
@@ -525,7 +527,7 @@ function App() {
                 }}
                 isSearchable
                 isClearable
-                placeholder="Buscar grupos..."
+                placeholder={t("search.group_placeholder")}
                 styles={SELECT_STYLES}
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
@@ -536,7 +538,7 @@ function App() {
             </div>
 
             <div className="search-box" style={{ flex: 2 }}>
-              <label>Buscar por disco</label>
+              <label>{t("search.by_album")}</label>
               <Select
                 options={titles.map((t) => ({ value: t, label: t }))}
                 value={
@@ -560,7 +562,7 @@ function App() {
                 }}
                 isSearchable
                 isClearable
-                placeholder="Buscar discos..."
+                placeholder={t("search.album_placeholder")}
                 styles={SELECT_STYLES}
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
@@ -576,7 +578,7 @@ function App() {
       </div>
 
       <div className="nav-bar-bottom">
-        <span>Registro:</span>
+        <span>{t("record.singular")}:</span>
         <button onClick={() => setRecordIndex(0)} disabled={recordIndex === 0}>
           ⏮
         </button>
@@ -587,7 +589,7 @@ function App() {
           ◀
         </button>
         <span className="record-count">
-          {recordIndex + 1} de {totalRecords}
+          {recordIndex + 1} {t("record.of")} {totalRecords}
         </span>
         <button
           onClick={() => setRecordIndex(recordIndex + 1)}
@@ -604,11 +606,11 @@ function App() {
 
         <div className="nav-action-buttons">
           <button onClick={handleAdd} className="btn-add">
-            ➕ Añadir
+            ➕ {t("actions.add")}
           </button>
           <button onClick={handleDelete} className="btn-delete"
           >
-            🗑 Borrar
+            🗑 {t("actions.delete")}
           </button>
         </div>
       </div>
@@ -625,17 +627,17 @@ function App() {
             aria-labelledby="delete-dialog-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 id="delete-dialog-title">Confirmar borrado</h3>
-            <p>Estas seguro de que quieres borrar este registro?</p>
+            <h3 id="delete-dialog-title">{t("actions.confirm_delete")}</h3>
+            <p>{t("actions.delete_sure")}</p>
             <div className="confirm-dialog-actions">
               <button
                 className="confirm-cancel"
                 onClick={() => setDeleteTargetId(null)}
               >
-                Cancelar
+                {t("actions.cancel")}
               </button>
               <button className="confirm-delete" onClick={confirmDelete}>
-                Borrar
+                {t("actions.delete")}
               </button>
             </div>
           </div>
