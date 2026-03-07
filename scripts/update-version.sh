@@ -21,7 +21,16 @@ if [ $# -eq 0 ]; then
 fi
 
 BUILD_SUFFIX="$1"
-NEW_VERSION="${BASE_VERSION}.${BUILD_SUFFIX}"
+
+# Extract MAJOR.MINOR from base version and use BUILD_SUFFIX as patch
+if [[ $BASE_VERSION =~ ^([0-9]+)\.([0-9]+)\. ]]; then
+    MAJOR="${BASH_REMATCH[1]}"
+    MINOR="${BASH_REMATCH[2]}"
+    NEW_VERSION="${MAJOR}.${MINOR}.${BUILD_SUFFIX}"
+else
+    echo "Error: Could not parse base version $BASE_VERSION"
+    exit 1
+fi
 
 echo "Updating version from $BASE_VERSION to $NEW_VERSION"
 

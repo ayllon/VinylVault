@@ -10,7 +10,8 @@ VinylVault uses semantic versioning with build ID suffixes for CI builds.
     - `app/src-tauri/Cargo.toml`
     - `app/package.json`
   
-- **CI build version**: `MAJOR.MINOR.PATCH.BUILDID` (e.g., `0.1.0.20260307`)
+- **CI build version**: `MAJOR.MINOR.BUILDID` (e.g., `0.1.20260307`)
+  - Patch version is replaced with the build ID
   - Used for automated builds to enable upgrades
   - Build ID format: `YYYYMMDD` (date of build)
 
@@ -45,10 +46,10 @@ git checkout app/src-tauri/tauri.conf.json app/src-tauri/Cargo.toml app/package.
 
 ## Package Manager Compatibility
 
-- **Debian (.deb)**: Supports version format `0.1.0.20260307` natively
-- **Windows MSI (.msi)**: Converts to Windows version format automatically by Tauri
+- **Debian (.deb)**: Supports version format `0.1.20260307` natively
+- **Windows MSI (.msi)**: Accepts three-part version numbers
 
 This ensures that:
-- Users can upgrade from CI builds to released versions
-- Each CI build has a unique, sortable version number
+- Users can upgrade from CI builds to newer CI builds
+- Each CI build has a unique, sortable version number based on date
 - Package managers correctly identify newer versions
