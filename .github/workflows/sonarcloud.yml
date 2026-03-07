@@ -10,6 +10,10 @@ permissions:
   contents: read
   pull-requests: read  # needed for PR decoration
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   sonarcloud:
     name: Analyze (TypeScript · Rust · Python)
