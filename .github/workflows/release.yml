@@ -63,6 +63,13 @@ jobs:
           # Install fpm (optional, used for deb/rpm packaging)
           sudo gem install --no-document fpm || true
 
+      - name: Set version with build ID
+        shell: bash
+        run: |
+          BUILD_ID=$(date +%Y%m%d)
+          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          ./scripts/update-version.sh $BUILD_ID
+
       - name: Install frontend dependencies
         working-directory: app
         run: npm install

@@ -1,0 +1,53 @@
+#!/bin/bash
+# Update version numbers in Tauri app for CI builds
+# Usage: ./update-version.sh [BUILD_SUFFIX]
+# Example: ./update-version.sh 20260307 -> results in version like 0.1.20260307
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TAURI_CONF="$PROJECT_ROOT/app/src-tauri/tauri.conf.json"
+CARGO_TOML="$PROJECT_ROOT/app/src-tauri/Cargo.toml"
+PACKAGE_JSON="$PROJECT_ROOT/app/package.json"
+
+# Get the base version from tauri.conf.json
+BASE_VERSION=$(grep -oP '"version":\s*"\K[^"]+' "$TAURI_CONF" | head -1)
+
+if [ $# -eq 0 ]; then
+    # No suffix provided, just display current version
+    echo "Current version: $BASE_VERSION"
+    exit 0
+fi
+
+BUILD_SUFFIX="$1"
+NEW_VERSION="${BASE_VERSION}.${BUILD_SUFFIX}"
+
+echo "Updating version from $BASE_VERSION to $NEW_VERSION"
+
+# Update tauri.conf.json
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS sed requires empty string after -i
+    sed -i '' "s/\"version\": \"$BASE_VERSION\"/\"version\": \"$NEW_VERSION\"/" "$TAURI_CONF"
+else
+    sed -i "s/\"version\": \"$BASE_VERSION\"/\"version\": \"$NEW_VERSION\"/" "$TAURI_CONF"
+fi
+
+# Update Cargo.toml
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^version = \"$BASE_VERSION\"/version = \"$NEW_VERSION\"/" "$CARGO_TOML"
+else
+    sed -i "s/^version = \"$BASE_VERSION\"/version = \"$NEW_VERSION\"/" "$CARGO_TOML"
+fi
+
+# Update package.json (though it's less critical)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$PACKAGE_JSON"
+else
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$PACKAGE_JSON"
+fi
+
+echo "✓ Version updated to $NEW_VERSION in:"
+echo "  - $TAURI_CONF"
+echo "  - $CARGO_TOML"
+echo "  - $PACKAGE_JSON"
