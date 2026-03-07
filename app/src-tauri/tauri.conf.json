@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "app",
+  "productName": "VinylVault",
   "version": "0.1.0",
   "identifier": "io.github.ayllon.app.vinylvault",
   "build": {
@@ -25,7 +25,9 @@
       "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost http://asset.localhost data:;",
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": {
+          "allow": ["$HOME/discos/**"]
+        }
       }
     }
   },

@@ -1,5 +1,5 @@
 [package]
-name = "app"
+name = "vinylvault"
 version = "0.1.0"
 description = "VinylVault – desktop music collection manager"
 authors = ["a.alvarezayllon@gmail.com"]
@@ -11,7 +11,7 @@ rust-version = "1.77.2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "app_lib"
+name = "vinylvault_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -29,3 +29,7 @@ tauri-plugin-fs = "2"
 r2d2 = "0.8"
 r2d2_sqlite = "0.32"
 dirs = "5.0"
+jetdb = "0.1"
+image = "0.25"
+unicode-normalization = "0.1"
+unidecode = "0.3"

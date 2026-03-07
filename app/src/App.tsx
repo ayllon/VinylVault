@@ -51,15 +51,17 @@ interface RecordData {
 
 function sanitizeKey(text: string | null | undefined): string {
   if (!text) return "";
-  const val = text.replace(/^["'\s]+|["'\s]+$/g, "");
-  const normalized = val.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const val = text.replaceAll(/^["'\s]+|["'\s]+$/g, "");
+  const normalized = val.normalize("NFKD").replaceAll(/[\u0300-\u036f]/g, "");
   const lower = normalized.toLowerCase();
-  const sanitized = lower.replace(/[^a-z0-9]/g, "_").replace(/^_+|_+$/g, "");
+  const sanitized = lower.replaceAll(/[^a-z0-9]/g, "_").replaceAll(/^_+|_+$/g, "");
   return sanitized;
 }
 
 function App() {
-  const [dbPath, setDbPath] = useState<string | null>(null);
+  const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
+  const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [coversDir, setCoversDir] = useState<string>("");
   const [recordIndex, setRecordIndex] = useState<number>(0);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [currentRecord, setCurrentRecord] = useState<RecordData | null>(null);
@@ -73,22 +75,36 @@ function App() {
   const [searchGrupo, setSearchGrupo] = useState<string>("");
   const [searchDisco, setSearchDisco] = useState<string>("");
 
+  // Check if DB is empty on mount
+  useEffect(() => {
+    async function checkDb() {
+      try {
+        const empty = await invoke<boolean>("is_db_empty");
+        setIsDbEmpty(empty);
+        if (!empty) {
+          const dir = await invoke<string>("get_covers_dir");
+          setCoversDir(dir);
+        }
+      } catch (e) {
+        console.error("Failed to check DB:", e);
+      }
+    }
+    checkDb();
+  }, []);
+
   const loadTotalRecords = useCallback(async () => {
-    if (!dbPath) return;
     try {
-      const total = await invoke<number>("get_total_records", { dbPath });
+      const total = await invoke<number>("get_total_records");
       setTotalRecords(total);
     } catch (e) {
       console.error(e);
     }
-  }, [dbPath]);
+  }, []);
 
   const loadComboboxes = useCallback(async () => {
-    if (!dbPath) return;
     try {
       const [g, t, f] = await invoke<[string[], string[], string[]]>(
         "get_groups_and_titles",
-        { dbPath },
       );
       setGroups(g);
       setTitles(t);
@@ -96,42 +112,53 @@ function App() {
     } catch (e) {
       console.error(e);
     }
-  }, [dbPath]);
+  }, []);
 
   useEffect(() => {
-    if (dbPath) {
+    if (isDbEmpty === false) {
       loadTotalRecords();
       loadComboboxes();
     }
-  }, [dbPath, loadTotalRecords, loadComboboxes]);
+  }, [isDbEmpty, loadTotalRecords, loadComboboxes]);
 
   useEffect(() => {
-    if (dbPath && totalRecords > 0) {
+    if (isDbEmpty === false && totalRecords > 0) {
       loadRecord(recordIndex);
     }
-  }, [recordIndex, totalRecords, dbPath]);
+  }, [recordIndex, totalRecords, isDbEmpty]);
 
-  async function openDatabase() {
+  async function handleImport() {
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: "SQLite", extensions: ["sqlite", "db", "sqlite3"] }],
+        filters: [{ name: "Microsoft Access", extensions: ["mdb"] }],
       });
       if (typeof selected === "string") {
-        setDbPath(selected);
-        setRecordIndex(0);
+        setIsImporting(true);
+        try {
+          const count = await invoke<number>("import_mdb", { mdbPath: selected });
+          alert(`Successfully imported ${count} records!`);
+          const dir = await invoke<string>("get_covers_dir");
+          setCoversDir(dir);
+          setIsDbEmpty(false);
+          setRecordIndex(0);
+        } catch (e) {
+          console.error(e);
+          alert("Error importing database: " + e);
+        } finally {
+          setIsImporting(false);
+        }
       }
     } catch (e) {
       console.error(e);
-      alert("Error opening database");
+      alert("Error opening file dialog");
     }
   }
 
   async function loadRecord(offset: number) {
-    if (!dbPath) return;
     const seq = ++loadSeqRef.current;
     try {
-      const rec = await invoke<RecordData>("get_record", { offset, dbPath });
+      const rec = await invoke<RecordData>("get_record", { offset });
       if (seq === loadSeqRef.current) {
         setCurrentRecord(rec);
       }
@@ -144,7 +171,6 @@ function App() {
   }
 
   async function handleSearchClick(column?: string, value?: string) {
-    if (!dbPath) return;
     try {
       let col = column;
       let val = value;
@@ -163,19 +189,18 @@ function App() {
       const offset = await invoke<number>("find_record_offset", {
         column: col,
         value: val,
-        dbPath,
       });
       setRecordIndex(offset);
-    } catch (e) {
+    } catch {
       alert("Record not found!");
     }
   }
 
   // Silent autosaver function
   async function handleSave() {
-    if (!dbPath || !currentRecord) return;
+    if (!currentRecord) return;
     try {
-      await invoke("update_record", { record: currentRecord, dbPath });
+      await invoke("update_record", { record: currentRecord });
       await loadComboboxes();
     } catch (e) {
       console.error("Auto-save failed:", e);
@@ -183,9 +208,8 @@ function App() {
   }
 
   async function handleAdd() {
-    if (!dbPath) return;
     try {
-      const newIndex = await invoke<number>("add_record", { dbPath });
+      const newIndex = await invoke<number>("add_record");
       await loadTotalRecords();
       setRecordIndex(newIndex);
     } catch (e) {
@@ -195,10 +219,10 @@ function App() {
   }
 
   async function handleDelete() {
-    if (!dbPath || !currentRecord) return;
+    if (!currentRecord) return;
     if (!confirm("Are you sure you want to delete this record?")) return;
     try {
-      await invoke("delete_record", { id: currentRecord.id, dbPath });
+      await invoke("delete_record", { id: currentRecord.id });
       await loadTotalRecords();
       setRecordIndex(0);
       await loadComboboxes();
@@ -209,26 +233,46 @@ function App() {
   }
 
   function getImagePath(type: "cd" | "lp"): string {
-    if (!dbPath || !currentRecord || !currentRecord.titulo) return "";
-    const separator = dbPath.includes("\\") ? "\\" : "/";
-    const dbDir = dbPath.substring(0, dbPath.lastIndexOf(separator));
+    if (!coversDir || !currentRecord || !currentRecord.titulo) return "";
 
     const key = sanitizeKey(currentRecord.titulo);
     if (key.length < 2) return "";
 
     const nested = key.substring(0, 2);
     const fileName = `${key}_${type}.jpeg`;
+    const separator = coversDir.includes("\\") ? "\\" : "/";
 
-    const fullPath = `${dbDir}${separator}covers${separator}${nested}${separator}${fileName}`;
+    const fullPath = `${coversDir}${separator}${nested}${separator}${fileName}`;
     return convertFileSrc(fullPath);
   }
 
-  if (!dbPath) {
+  if (isDbEmpty === null) {
     return (
       <div className="auth-overlay">
         <h2>Registro Musical</h2>
-        <p>Please select the discos.sqlite database file to start.</p>
-        <button onClick={openDatabase}>Open Database</button>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (isDbEmpty) {
+    return (
+      <div className="auth-overlay">
+        <h2>Registro Musical</h2>
+        {isImporting ? (
+          <div className="import-progress">
+            <div className="spinner"></div>
+            <p>Importing database...</p>
+            <p className="import-note">This may take a few minutes. Please wait.</p>
+          </div>
+        ) : (
+          <>
+            <p>Database is empty. Import an existing MDB file to get started.</p>
+            <button onClick={handleImport}>
+              Import MDB File
+            </button>
+          </>
+        )}
       </div>
     );
   }
@@ -312,13 +356,13 @@ function App() {
                 : null
             }
             onChange={(option) => {
-              if (currentRecord && dbPath) {
+              if (currentRecord) {
                 const updated = {
                   ...currentRecord,
                   formato: option?.value || "",
                 };
                 setCurrentRecord(updated);
-                invoke("update_record", { record: updated, dbPath })
+                invoke("update_record", { record: updated })
                   .then(() => loadComboboxes())
                   .catch((e) => console.error("Auto-save failed:", e));
               }

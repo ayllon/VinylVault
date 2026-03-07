@@ -1,3 +1,5 @@
+mod mdb_import;
+
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -31,7 +33,7 @@ fn resolve_db_path() -> Result<PathBuf, String> {
         Ok(PathBuf::from(path))
     } else {
         let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-        Ok(home.join(".discos").join("discos.sqlite"))
+        Ok(home.join("discos").join("discos.sqlite"))
     }
 }
 
@@ -276,6 +278,39 @@ fn delete_record(id: i64, state: State<AppState>) -> Result<(), String> {
     delete_record_impl(&conn, id)
 }
 
+#[tauri::command]
+fn get_covers_dir() -> Result<String, String> {
+    let db_path = resolve_db_path()?;
+    let covers_dir = db_path
+        .parent()
+        .ok_or("Invalid database path")?
+        .join("covers");
+    Ok(covers_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn is_db_empty(state: State<AppState>) -> Result<bool, String> {
+    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
+    mdb_import::is_db_empty_impl(&conn)
+}
+
+#[tauri::command]
+fn import_mdb(mdb_path: String, state: State<AppState>) -> Result<usize, String> {
+    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
+    
+    let db_path = resolve_db_path()?;
+    let covers_dir = db_path
+        .parent()
+        .ok_or("Invalid database path")?;
+    let covers_path = covers_dir.join("covers");
+    
+    mdb_import::import_mdb_impl(
+        std::path::Path::new(&mdb_path),
+        &conn,
+        &covers_path,
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db_path = resolve_db_path().expect("Failed to resolve database path");
@@ -298,6 +333,9 @@ pub fn run() {
             add_record,
             update_record,
             delete_record,
+            get_covers_dir,
+            is_db_empty,
+            import_mdb,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
