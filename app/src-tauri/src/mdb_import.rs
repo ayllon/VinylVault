@@ -259,6 +259,26 @@ fn get_binary_value(value: &Value) -> Option<&[u8]> {
 mod tests {
     use super::*;
 
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open(":memory:").expect("failed to open in-memory db");
+        conn.execute(
+            "CREATE TABLE discos (
+                GRUPO TEXT,
+                TITULO TEXT,
+                FORMATO TEXT,
+                ANIO TEXT,
+                ESTILO TEXT,
+                PAIS TEXT,
+                CANCIONES TEXT,
+                CREDITOS TEXT,
+                OBSERV TEXT
+            )",
+            [],
+        )
+        .expect("failed to create discos table");
+        conn
+    }
+
     #[test]
     fn test_sanitize_key() {
         assert_eq!(sanitize_key("Hello World"), "hello_world");
@@ -275,4 +295,65 @@ mod tests {
         // Cyrillic should be transliterated to Latin
         assert_eq!(sanitize_key("Москва"), "moskva");
     }
+
+    #[test]
+    fn test_is_db_empty_impl_true_when_table_has_no_rows() {
+        let conn = setup_test_db();
+        let is_empty = is_db_empty_impl(&conn).expect("empty check failed");
+        assert!(is_empty);
+    }
+
+    #[test]
+    fn test_is_db_empty_impl_false_when_table_has_rows() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO discos (GRUPO, TITULO) VALUES (?1, ?2)",
+            rusqlite::params!["Grupo", "Disco"],
+        )
+        .expect("insert failed");
+
+        let is_empty = is_db_empty_impl(&conn).expect("empty check failed");
+        assert!(!is_empty);
+    }
+
+    #[test]
+    fn test_import_mdb_rejects_non_empty_database_before_opening_mdb() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO discos (GRUPO, TITULO) VALUES (?1, ?2)",
+            rusqlite::params!["Grupo", "Disco"],
+        )
+        .expect("insert failed");
+
+        let covers_dir = std::env::temp_dir().join("vinylvault-test-covers-non-empty");
+        let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
+        let mut progress_calls = 0usize;
+
+        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &covers_dir, |_, _| {
+            progress_calls += 1;
+        });
+
+        assert!(result.is_err());
+        let err = result.err().expect("expected error");
+        assert!(err.contains("Database is not empty"));
+        assert_eq!(progress_calls, 0);
+    }
+
+    #[test]
+    fn test_import_mdb_missing_file_returns_open_error_on_empty_db() {
+        let conn = setup_test_db();
+        let covers_dir = std::env::temp_dir().join("vinylvault-test-covers-empty");
+        let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
+        let mut progress_calls = 0usize;
+
+        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &covers_dir, |_, _| {
+            progress_calls += 1;
+        });
+
+        assert!(result.is_err());
+        let err = result.err().expect("expected error");
+        assert!(err.contains("Failed to open MDB"));
+        assert_eq!(progress_calls, 0);
+    }
+
 }
