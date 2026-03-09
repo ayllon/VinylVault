@@ -482,8 +482,8 @@ function App() {
           ></textarea>
         </div>
 
-        <div className="photo-cd-wrapper">
-          <div className="photo-label">{t("fields.cd_cover")}</div>
+        <div className="field-group photo-cd-wrapper">
+          <label>{t("fields.cd_cover")}</label>
           <div className="photo-box">
             {currentRecord?.cd_cover_path && (
               <img
@@ -496,8 +496,8 @@ function App() {
           </div>
         </div>
 
-        <div className="photo-lp-wrapper">
-          <div className="photo-label">{t("fields.lp_cover")}</div>
+        <div className="field-group photo-lp-wrapper">
+          <label>{t("fields.lp_cover")}</label>
           <div className="photo-box">
             {currentRecord?.lp_cover_path && (
               <img

@@ -181,16 +181,6 @@ body {
     object-fit: cover; /* or contain based on preference, cover is nicer for squares */
 }
 
-.photo-label {
-    color: #4a5568;
-    font-size: 12px;
-    font-weight: 600;
-    text-align: center;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
 /* Specific Grid Placements */
 .artist {
     grid-column: 1 / 2;
@@ -231,12 +221,10 @@ body {
 .photo-cd-wrapper {
     grid-column: 3 / 4;
     grid-row: 4 / 5;
-    margin-top: 10px;
 }
 .photo-lp-wrapper {
     grid-column: 4 / 5;
     grid-row: 4 / 5;
-    margin-top: 10px;
 }
 
 .action-bar {
