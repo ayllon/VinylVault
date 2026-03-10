@@ -133,6 +133,7 @@ where
 
     let mut imported_count = 0;
     let total_rows = result.rows.len();
+    let mut fully_empty_rows = 0usize;
 
     on_progress(0, total_rows);
 
@@ -157,6 +158,11 @@ where
 
     // Iterate through records
     for row in result.rows {
+        if row.iter().all(is_effectively_empty_value) {
+            fully_empty_rows += 1;
+            continue;
+        }
+
         // Extract text fields
         let grupo = grupo_idx.and_then(|i| get_string_value(&row[i]));
         let titulo = titulo_idx.and_then(|i| get_string_value(&row[i]));
@@ -227,6 +233,12 @@ where
         }
     }
 
+    if fully_empty_rows > 0 {
+        log::warn!(
+            "discos: skipped {fully_empty_rows} fully empty parsed row(s); this usually indicates unresolved source row payloads (for example multipage lookup rows)"
+        );
+    }
+
     Ok(imported_count)
 }
 
@@ -244,6 +256,15 @@ fn get_binary_value(value: &Value) -> Option<&[u8]> {
     match value {
         Value::Binary(b) => Some(b.as_slice()),
         _ => None,
+    }
+}
+
+fn is_effectively_empty_value(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::Text(s) => s.trim().is_empty(),
+        Value::Binary(b) => b.is_empty(),
+        _ => false,
     }
 }
 

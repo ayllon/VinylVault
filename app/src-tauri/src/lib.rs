@@ -6,12 +6,14 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
 
 const DB_SCHEMA_VERSION: &str = "1";
 const META_KEY_SCHEMA_VERSION: &str = "schema_version";
 const META_KEY_SOURCE_MDB_PATH: &str = "source_mdb_path";
+const DEBUG_IMPORT_TEMP_DIR: &str = "vinylvault-mdb-import-debug";
 
 #[derive(Clone)]
 struct AppState {
@@ -442,6 +444,63 @@ async fn import_mdb(
     })
     .await
     .map_err(|e| format!("Import task failed: {}", e))?
+}
+
+/// Import an MDB file into a deterministic temporary directory for parser debugging.
+///
+/// The temporary directory is deleted before every run so stale DB or cover files
+/// cannot mask parser issues.
+pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
+    if !mdb_path.exists() {
+        return Err(format!("MDB file does not exist: {}", mdb_path.display()));
+    }
+
+    let tmp_root = env::temp_dir().join(DEBUG_IMPORT_TEMP_DIR);
+    if tmp_root.exists() {
+        fs::remove_dir_all(&tmp_root).map_err(|e| {
+            format!(
+                "Failed to clean temp directory {}: {}",
+                tmp_root.display(),
+                e
+            )
+        })?;
+    }
+    fs::create_dir_all(&tmp_root).map_err(|e| {
+        format!(
+            "Failed to create temp directory {}: {}",
+            tmp_root.display(),
+            e
+        )
+    })?;
+
+    let db_path = tmp_root.join("debug.sqlite");
+    let covers_path = tmp_root.join("covers");
+
+    init_db_if_needed(&db_path)?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+
+    log::info!("debug import temp root: {}", tmp_root.display());
+    log::info!("debug import sqlite: {}", db_path.display());
+
+    let imported = mdb_import::import_mdb_impl_with_progress(
+        mdb_path,
+        &conn,
+        &covers_path,
+        |processed, total| {
+            if processed == 0 || processed % 250 == 0 || processed == total {
+                log::info!("import progress: {processed}/{total}");
+            }
+        },
+    )?;
+
+    upsert_meta(
+        &conn,
+        META_KEY_SOURCE_MDB_PATH,
+        mdb_path.to_string_lossy().as_ref(),
+    )?;
+
+    log::info!("debug import finished, imported rows: {imported}");
+    Ok(imported)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
