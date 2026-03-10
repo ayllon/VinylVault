@@ -99,36 +99,46 @@ pub fn read_table_rows(reader: &mut PageReader, table: &TableDef) -> Result<Read
             if row_ptr & row::DELETE_FLAG != 0 {
                 continue;
             }
-            // Skip overflow/lookup rows (multi-page rows not yet supported)
-            if row_ptr & row::LOOKUP_FLAG != 0 {
-                log::warn!(
-                    "{table}: skipping overflow/lookup row on page {page_num} row {row_idx} (raw_ptr=0x{row_ptr:04X})",
-                    table = table.name,
-                );
-                skipped_rows += 1;
-                continue;
-            }
 
-            let (start, size) = match find_row(format, &page_data, page_num, row_idx) {
-                Ok(v) => v,
-                Err(e) => {
-                    log::warn!(
-                        "{table}: skipping row on page {page_num} row {row_idx} due to find_row error: {e} (raw_ptr=0x{row_ptr:04X})",
-                        table = table.name,
-                    );
-                    skipped_rows += 1;
-                    continue;
+            // Handle overflow/lookup rows (multi-page rows)
+            let row_data: Vec<u8>;
+            let row_data_ref: &[u8] = if row_ptr & row::LOOKUP_FLAG != 0 {
+                match read_multipage_row_data(&page_data, row_ptr, reader) {
+                    Ok(data) => {
+                        row_data = data;
+                        &row_data
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "{table}: skipping overflow row on page {page_num} row {row_idx}: {e} (raw_ptr=0x{row_ptr:04X})",
+                            table = table.name,
+                        );
+                        skipped_rows += 1;
+                        continue;
+                    }
                 }
+            } else {
+                let (start, size) = match find_row(format, &page_data, page_num, row_idx) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::warn!(
+                            "{table}: skipping row on page {page_num} row {row_idx} due to find_row error: {e} (raw_ptr=0x{row_ptr:04X})",
+                            table = table.name,
+                        );
+                        skipped_rows += 1;
+                        continue;
+                    }
+                };
+                &page_data[start..start + size]
             };
-
-            let row_data = &page_data[start..start + size];
-            let cracked = match crack_row(row_data, is_jet3) {
+            let cracked = match crack_row(row_data_ref, is_jet3) {
                 Ok(c) => c,
                 Err(e) => {
                     log::warn!(
                         "{table}: skipping row on page {page_num} row {row_idx} due to crack_row error: {e}; row_size={size}; row_head={head}",
                         table = table.name,
-                        head = hex_preview(row_data, 48),
+                        size = row_data_ref.len(),
+                        head = hex_preview(row_data_ref, 48),
                     );
                     skipped_rows += 1;
                     continue;
@@ -160,6 +170,148 @@ fn hex_preview(data: &[u8], max_len: usize) -> String {
         out.push_str(" ...");
     }
     out
+}
+
+/// Read a multipage (overflow/lookup) row.
+///
+/// When the LOOKUP_FLAG is set, the row pointer's offset points to a location
+/// in the page containing a 4-byte pg_row pointer. This pg_row may point to
+/// an overflow page that contains the actual row data, or may chain across
+/// multiple pages (similar to LVAL multi-page overflow).
+///
+/// Return the complete assembled row data.
+fn read_multipage_row_data(
+    page_data: &[u8],
+    row_ptr: u16,
+    reader: &mut PageReader,
+) -> Result<Vec<u8>, FileError> {
+    let offset = (row_ptr & row::OFFSET_MASK) as usize;
+
+    // The row stub contains a 4-byte pg_row pointer
+    if offset + 4 > page_data.len() {
+        return Err(FileError::InvalidRow {
+            page: 0,
+            row: 0,
+            reason: "overflow row stub too short for pg_row pointer",
+        });
+    }
+
+    let pg_row = u32::from_le_bytes([
+        page_data[offset],
+        page_data[offset + 1],
+        page_data[offset + 2],
+        page_data[offset + 3],
+    ]);
+
+    log::debug!("Reading multipage row: stub offset={offset}, pg_row=0x{pg_row:08X}");
+
+    // First chunk may be either:
+    // 1) a complete row payload, or
+    // 2) a chain chunk prefixed by next pg_row (like LVAL multipage)
+    let first_chunk = read_lookup_pg_row(reader, pg_row)?;
+    if first_chunk.len() < 4 {
+        log::debug!("Multipage row read (single chunk): {} bytes", first_chunk.len());
+        return Ok(first_chunk);
+    }
+
+    let mut next_pg_row = u32::from_le_bytes(first_chunk[..4].try_into().unwrap());
+    if next_pg_row == 0 {
+        log::debug!("Multipage row read (single chunk): {} bytes", first_chunk.len());
+        return Ok(first_chunk);
+    }
+
+    // Heuristic: only switch to chained mode if the next chunk can actually
+    // be read. Otherwise this was a normal row and the first 4 bytes are data.
+    let second_chunk = match read_lookup_pg_row(reader, next_pg_row) {
+        Ok(chunk) => chunk,
+        Err(_) => {
+            log::debug!(
+                "Multipage row first 4 bytes looked like next pg_row=0x{next_pg_row:08X}, but lookup failed; treating as single chunk"
+            );
+            return Ok(first_chunk);
+        }
+    };
+
+    let mut assembled = Vec::with_capacity(first_chunk.len());
+    let mut visited = HashSet::new();
+    visited.insert(pg_row);
+    visited.insert(next_pg_row);
+
+    assembled.extend_from_slice(&first_chunk[4..]);
+
+    let mut chunk = second_chunk;
+    loop {
+        if chunk.len() < 4 {
+            return Err(FileError::InvalidRow {
+                page: 0,
+                row: 0,
+                reason: "overflow chunk too short for next pg_row pointer",
+            });
+        }
+        let next = u32::from_le_bytes(chunk[..4].try_into().unwrap());
+        assembled.extend_from_slice(&chunk[4..]);
+
+        if next == 0 {
+            break;
+        }
+        if !visited.insert(next) {
+            return Err(FileError::InvalidRow {
+                page: 0,
+                row: 0,
+                reason: "overflow chunk chain cycle detected",
+            });
+        }
+
+        next_pg_row = next;
+        chunk = read_lookup_pg_row(reader, next_pg_row)?;
+    }
+
+    log::debug!("Multipage row read (chained): {} bytes", assembled.len());
+    Ok(assembled)
+}
+
+/// Read a lookup pg_row, with a compatibility fallback for row numbering.
+///
+/// Some overflow lookup references appear to store row indexes differently.
+/// If direct lookup fails with "row index exceeds row count", retry with
+/// progressively smaller row numbers on the same page.
+fn read_lookup_pg_row(reader: &mut PageReader, pg_row: u32) -> Result<Vec<u8>, FileError> {
+    match reader.read_pg_row(pg_row) {
+        Ok(data) => Ok(data),
+        Err(FileError::InvalidRow {
+            page,
+            row,
+            reason,
+        }) if reason == "row index exceeds row count" && row > 0 => {
+            for retry_row in (0..row).rev() {
+                let retry_pg_row = (pg_row & 0xFFFFFF00) | (retry_row as u32);
+                match reader.read_pg_row(retry_pg_row) {
+                    Ok(data) => {
+                        log::debug!(
+                            "Lookup pg_row fallback: page={page}, row={row} -> row={retry_row} (pg_row=0x{pg_row:08X} -> 0x{retry_pg_row:08X})"
+                        );
+                        return Ok(data);
+                    }
+                    Err(FileError::InvalidRow {
+                        reason: "row index exceeds row count",
+                        ..
+                    }) => {
+                        continue;
+                    }
+                    Err(_) => {
+                        continue;
+                    }
+                }
+            }
+
+            Err(FileError::InvalidRow {
+                page,
+                row,
+                reason,
+            })
+        }
+        Err(e) => Err(e),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -247,10 +399,21 @@ fn crack_row_jet4(row_data: &[u8]) -> Result<CrackedRow<'_>, FileError> {
     // Entry count = var_col_count + 1 (includes EOD).
     // var_offsets[0] = EOD at (vcc_pos - 2)
     // var_offsets[k+1] = start offset of var col k at (vcc_pos - 2*(k+2))
-    let offset_entries = var_col_count as usize + 1;
+    let requested_entries = var_col_count as usize + 1;
+    // Bound the number of entries by available bytes before vcc_pos.
+    let max_entries = (vcc_pos / 2).saturating_add(1);
+    let offset_entries = requested_entries.min(max_entries);
+
     let mut var_offsets = Vec::with_capacity(offset_entries);
     for i in 0..offset_entries {
-        let pos = vcc_pos.wrapping_sub(2 + i * 2);
+        let back = match 2usize.checked_add(i.saturating_mul(2)) {
+            Some(v) => v,
+            None => break,
+        };
+        if back > vcc_pos {
+            break;
+        }
+        let pos = vcc_pos - back;
         if pos + 2 > len {
             break;
         }
@@ -1065,6 +1228,166 @@ mod tests {
         let null_mask = [0x01u8]; // bit 0 set, bit 1 clear
         assert_eq!(Value::Bool(!is_null(&null_mask, 0)), Value::Bool(true));
         assert_eq!(Value::Bool(!is_null(&null_mask, 1)), Value::Bool(false));
+    }
+
+    // -- read_multipage_row_data -----------------------------------------------
+
+    fn make_jet4_data_page(rows: &[Vec<u8>]) -> Vec<u8> {
+        let mut page = vec![0u8; 4096];
+        page[0] = 0x01; // Data page type
+        page[12..14].copy_from_slice(&(rows.len() as u16).to_le_bytes());
+
+        let table_start = 14usize;
+        let mut cursor = 4096usize;
+        for (idx, row_bytes) in rows.iter().enumerate() {
+            cursor -= row_bytes.len();
+            page[cursor..cursor + row_bytes.len()].copy_from_slice(row_bytes);
+            let entry_pos = table_start + idx * 2;
+            page[entry_pos..entry_pos + 2].copy_from_slice(&(cursor as u16).to_le_bytes());
+        }
+
+        page
+    }
+
+    fn open_reader_with_page1(page1: &[u8]) -> crate::file::PageReader {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        fn rc4_transform(key: &[u8], buf: &mut [u8]) {
+            let mut s: [u8; 256] = [0; 256];
+            for (i, slot) in s.iter_mut().enumerate() {
+                *slot = i as u8;
+            }
+            let mut j: u8 = 0;
+            for i in 0u8..=255 {
+                let idx = i as usize;
+                j = j.wrapping_add(s[idx]).wrapping_add(key[idx % key.len()]);
+                s.swap(idx, j as usize);
+            }
+
+            let mut i: u8 = 0;
+            let mut j: u8 = 0;
+            for byte in buf.iter_mut() {
+                i = i.wrapping_add(1);
+                j = j.wrapping_add(s[i as usize]);
+                s.swap(i as usize, j as usize);
+                let k = s[(s[i as usize].wrapping_add(s[j as usize])) as usize];
+                *byte ^= k;
+            }
+        }
+
+        let mut tmpfile = NamedTempFile::new().unwrap();
+        let mut db = vec![0u8; 4096 * 2];
+        db[0x14] = 0x01; // Jet4 version
+
+        // Page 0 encrypted region (Jet4 len=126) must be pre-encrypted so
+        // PageReader decrypts it back to zeros (including DB_KEY=0).
+        const HEADER_RC4_KEY: [u8; 4] = [0xC7, 0xDA, 0x39, 0x6B];
+        let mut enc = vec![0u8; 126];
+        rc4_transform(&HEADER_RC4_KEY, &mut enc);
+        db[0x18..0x18 + 126].copy_from_slice(&enc);
+
+        db[4096..8192].copy_from_slice(page1);
+        tmpfile.write_all(&db).unwrap();
+        tmpfile.flush().unwrap();
+
+        crate::file::PageReader::open(tmpfile.into_temp_path()).unwrap()
+    }
+
+    #[test]
+    fn multipage_row_stub_too_short() {
+        use crate::file::PageReader;
+        use tempfile::NamedTempFile;
+        use std::io::Write;
+
+        // Create a minimal valid database file for PageReader
+        let mut tmpfile = NamedTempFile::new().unwrap();
+        let mut header = vec![0u8; 4096];
+        header[0x14] = 0x01; // Jet4 version
+        tmpfile.write_all(&header).unwrap();
+        tmpfile.flush().unwrap();
+
+        let mut reader = PageReader::open(tmpfile.path()).unwrap();
+        
+        // Build a page with a lookup row stub that's too short
+        let mut page_data = vec![0u8; 4096];
+        page_data[0] = 0x01; // Data page type
+        
+        // Row pointer with LOOKUP_FLAG set, offset = 100
+        let row_ptr: u16 = row::LOOKUP_FLAG | 100;
+        
+        // Fill page up to offset 100 with only 2 bytes (not enough for pg_row)
+        // This page ends at offset 102, but we need 4 bytes for pg_row
+        
+        let result = read_multipage_row_data(&page_data[..102], row_ptr, &mut reader);
+        assert!(result.is_err());
+        if let Err(FileError::InvalidRow { reason, .. }) = result {
+            assert!(reason.contains("too short"));
+        } else {
+            panic!("Expected InvalidRow error");
+        }
+    }
+
+    #[test]
+    fn multipage_row_single_chunk_if_chain_probe_fails() {
+        // First 4 bytes look like a pg_row, but if that pg_row cannot be read,
+        // the chunk must be treated as a normal single row payload.
+        let row_payload = vec![0x34, 0x12, 0x00, 0x00, 0xAB, 0xCD];
+        let page1 = make_jet4_data_page(&[row_payload.clone()]);
+        let mut reader = open_reader_with_page1(&page1);
+
+        let mut page_data = vec![0u8; 4096];
+        page_data[100..104].copy_from_slice(&0x00000100u32.to_le_bytes()); // page 1, row 0
+        let row_ptr: u16 = row::LOOKUP_FLAG | 100;
+
+        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader).unwrap();
+        assert_eq!(got, row_payload);
+    }
+
+    #[test]
+    fn multipage_row_uses_one_based_row_fallback() {
+        // Build page 1 with 11 rows (valid indices 0..10). If lookup points to
+        // row 11, fallback should retry row 10.
+        let mut rows = Vec::new();
+        for i in 0..10u8 {
+            rows.push(vec![0xA0, i]);
+        }
+        let expected = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        rows.push(expected.clone()); // row index 10
+
+        let page1 = make_jet4_data_page(&rows);
+        let mut reader = open_reader_with_page1(&page1);
+
+        let mut page_data = vec![0u8; 4096];
+        page_data[120..124].copy_from_slice(&0x0000010Bu32.to_le_bytes()); // page 1, row 11
+        let row_ptr: u16 = row::LOOKUP_FLAG | 120;
+
+        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader).unwrap();
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn multipage_row_reads_chained_chunks() {
+        // row0 chunk: [next_pg_row][data]
+        // row1 chunk: [0][data]
+        let next = 0x00000101u32.to_le_bytes(); // page 1, row 1
+        let mut row0 = Vec::new();
+        row0.extend_from_slice(&next);
+        row0.extend_from_slice(&[0xAA, 0xBB]);
+
+        let mut row1 = Vec::new();
+        row1.extend_from_slice(&0u32.to_le_bytes());
+        row1.extend_from_slice(&[0xCC, 0xDD]);
+
+        let page1 = make_jet4_data_page(&[row0, row1]);
+        let mut reader = open_reader_with_page1(&page1);
+
+        let mut page_data = vec![0u8; 4096];
+        page_data[140..144].copy_from_slice(&0x00000100u32.to_le_bytes()); // page 1, row 0
+        let row_ptr: u16 = row::LOOKUP_FLAG | 140;
+
+        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader).unwrap();
+        assert_eq!(got, vec![0xAA, 0xBB, 0xCC, 0xDD]);
     }
 
     // -- read_fixed_value (fixed types) ----------------------------------------
