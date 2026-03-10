@@ -108,7 +108,6 @@ pub fn read_table_rows(reader: &mut PageReader, table: &TableDef) -> Result<Read
                 row_ptr,
                 &table.name,
                 format,
-                is_jet3,
             ) else {
                 skipped_rows += 1;
                 continue;
@@ -149,10 +148,9 @@ fn read_row_payload(
     row_ptr: u16,
     table_name: &str,
     format: &crate::format::JetFormat,
-    is_jet3: bool,
 ) -> Option<Vec<u8>> {
     if row_ptr & row::LOOKUP_FLAG != 0 {
-        match read_multipage_row_data(page_data, row_ptr, reader, is_jet3) {
+        match read_multipage_row_data(page_data, row_ptr, reader) {
             Ok(data) => Some(data),
             Err(e) => {
                 log::warn!(
@@ -194,16 +192,16 @@ fn hex_preview(data: &[u8], max_len: usize) -> String {
 /// Read a multipage (overflow/lookup) row.
 ///
 /// When the LOOKUP_FLAG is set, the row pointer's offset points to a location
-/// in the page containing a 4-byte pg_row pointer. This pg_row may point to
-/// an overflow page that contains the actual row data, or may chain across
-/// multiple pages (similar to LVAL multi-page overflow).
+/// in the page containing a 4-byte pg_row pointer.
 ///
-/// Return the complete assembled row data.
+/// Per mdbtools/HACKING lookupflag behavior, this pg_row directly references
+/// the destination data-page row that contains the full payload. Some Jet4
+/// files encode the low byte as a tagged row value (`0x?B`), so we apply
+/// a bounded decode fallback for that byte before locating the row.
 fn read_multipage_row_data(
     page_data: &[u8],
     row_ptr: u16,
     reader: &mut PageReader,
-    is_jet3: bool,
 ) -> Result<Vec<u8>, FileError> {
     let offset = (row_ptr & row::OFFSET_MASK) as usize;
 
@@ -224,99 +222,14 @@ fn read_multipage_row_data(
     ]);
 
     log::debug!("Reading multipage row: stub offset={offset}, pg_row=0x{pg_row:08X}");
-
-    // First chunk may be either:
-    // 1) a complete row payload, or
-    // 2) a chain chunk prefixed by next pg_row (like LVAL multipage)
-    let first_chunk = read_lookup_pg_row(reader, pg_row)?;
-    if first_chunk.len() < 4 {
-        log::debug!("Multipage row read (single chunk): {} bytes", first_chunk.len());
-        return Ok(first_chunk);
-    }
-
-    let mut next_pg_row = u32::from_le_bytes(first_chunk[..4].try_into().unwrap());
-    if next_pg_row == 0 {
-        log::debug!("Multipage row read (single chunk): {} bytes", first_chunk.len());
-        return Ok(first_chunk);
-    }
-
-    // Heuristic: only switch to chained mode if the next chunk can actually
-    // be read. Otherwise this was a normal row and the first 4 bytes are data.
-    let second_chunk = match read_lookup_pg_row(reader, next_pg_row) {
-        Ok(chunk) => chunk,
-        Err(_) => {
-            log::debug!(
-                "Multipage row first 4 bytes looked like next pg_row=0x{next_pg_row:08X}, but lookup failed; treating as single chunk"
-            );
-            return Ok(first_chunk);
-        }
-    };
-
-    // Prefer direct payload when it already looks like a valid row.
-    if crack_row(&first_chunk, is_jet3).is_ok() {
-        log::debug!(
-            "Multipage row first chunk is a valid row payload; skipping chain interpretation"
-        );
-        return Ok(first_chunk);
-    }
-
-    let mut assembled = Vec::with_capacity(first_chunk.len());
-    let mut visited = HashSet::new();
-    visited.insert(pg_row);
-    visited.insert(next_pg_row);
-
-    assembled.extend_from_slice(&first_chunk[4..]);
-
-    let mut chunk = second_chunk;
-    loop {
-        if chunk.len() < 4 {
-            return Err(FileError::InvalidRow {
-                page: 0,
-                row: 0,
-                reason: "overflow chunk too short for next pg_row pointer",
-            });
-        }
-        let next = u32::from_le_bytes(chunk[..4].try_into().unwrap());
-        assembled.extend_from_slice(&chunk[4..]);
-
-        if next == 0 {
-            break;
-        }
-        if !visited.insert(next) {
-            return Err(FileError::InvalidRow {
-                page: 0,
-                row: 0,
-                reason: "overflow chunk chain cycle detected",
-            });
-        }
-
-        next_pg_row = next;
-        chunk = read_lookup_pg_row(reader, next_pg_row)?;
-    }
-
-    if crack_row(&assembled, is_jet3).is_ok() {
-        log::debug!("Multipage row read (chained): {} bytes", assembled.len());
-        return Ok(assembled);
-    }
-
-    if crack_row(&first_chunk, is_jet3).is_ok() {
-        log::debug!(
-            "Multipage chained payload is invalid row; falling back to first chunk payload"
-        );
-        return Ok(first_chunk);
-    }
-
-    log::debug!(
-        "Multipage row chained payload is invalid and first chunk is not a row; returning chained bytes"
-    );
-    Ok(assembled)
+    read_lookup_pg_row(reader, pg_row)
 }
 
 /// Read a lookup pg_row used by overflow/lookup rows.
 ///
-/// For lookup references, the low byte may be a tagged row value. In the
-/// observed Jet4 overflow pages, low nibble `0xB` denotes a lookup tag and
-/// the high nibble carries the actual row number.
+/// The normal encoding is `page = pg_row >> 8`, `row = pg_row & 0xFF`.
+/// For compatibility with observed tagged lookup rows, we also accept low-byte
+/// form `0x?B` and decode it as `row = tag >> 4` when in range.
 fn read_lookup_pg_row(reader: &mut PageReader, pg_row: u32) -> Result<Vec<u8>, FileError> {
     let page_num = pg_row >> 8;
     let row_tag = (pg_row & 0xFF) as u16;
@@ -1374,7 +1287,7 @@ mod tests {
         // Fill page up to offset 100 with only 2 bytes (not enough for pg_row)
         // This page ends at offset 102, but we need 4 bytes for pg_row
         
-        let result = read_multipage_row_data(&page_data[..102], row_ptr, &mut reader, false);
+        let result = read_multipage_row_data(&page_data[..102], row_ptr, &mut reader);
         assert!(result.is_err());
         if let Err(FileError::InvalidRow { reason, .. }) = result {
             assert!(reason.contains("too short"));
@@ -1384,9 +1297,7 @@ mod tests {
     }
 
     #[test]
-    fn multipage_row_single_chunk_if_chain_probe_fails() {
-        // First 4 bytes look like a pg_row, but if that pg_row cannot be read,
-        // the chunk must be treated as a normal single row payload.
+    fn multipage_row_reads_pointed_row_payload() {
         let row_payload = vec![0x34, 0x12, 0x00, 0x00, 0xAB, 0xCD];
         let page1 = make_jet4_data_page(&[row_payload.clone()]);
         let mut reader = open_reader_with_page1(&page1);
@@ -1395,7 +1306,7 @@ mod tests {
         page_data[100..104].copy_from_slice(&0x00000100u32.to_le_bytes()); // page 1, row 0
         let row_ptr: u16 = row::LOOKUP_FLAG | 100;
 
-        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader, false).unwrap();
+        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader).unwrap();
         assert_eq!(got, row_payload);
     }
 
@@ -1417,51 +1328,26 @@ mod tests {
         page_data[120..124].copy_from_slice(&0x0000010Bu32.to_le_bytes()); // page 1, tagged row 0
         let row_ptr: u16 = row::LOOKUP_FLAG | 120;
 
-        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader, false).unwrap();
+        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader).unwrap();
         assert_eq!(got, expected);
     }
 
     #[test]
-    fn multipage_row_invalid_row_tag_errors() {
-        // Row tag 0x1B decodes to row 1. On a single-row page this is invalid.
+    fn multipage_row_invalid_row_index_errors() {
         let page1 = make_jet4_data_page(&[vec![0xAA, 0xBB, 0xCC]]);
         let mut reader = open_reader_with_page1(&page1);
 
         let mut page_data = vec![0u8; 4096];
-        page_data[120..124].copy_from_slice(&0x0000011Bu32.to_le_bytes()); // page 1, tagged row 1
+        page_data[120..124].copy_from_slice(&0x00000101u32.to_le_bytes()); // page 1, row 1
         let row_ptr: u16 = row::LOOKUP_FLAG | 120;
 
-        let err = read_multipage_row_data(&page_data, row_ptr, &mut reader, false).unwrap_err();
+        let err = read_multipage_row_data(&page_data, row_ptr, &mut reader).unwrap_err();
         match err {
             FileError::InvalidRow { reason, .. } => {
                 assert_eq!(reason, "row index exceeds row count");
             }
             other => panic!("Expected InvalidRow, got: {other:?}"),
         }
-    }
-
-    #[test]
-    fn multipage_row_reads_chained_chunks() {
-        // row0 chunk: [next_pg_row][data]
-        // row1 chunk: [0][data]
-        let next = 0x00000101u32.to_le_bytes(); // page 1, row 1
-        let mut row0 = Vec::new();
-        row0.extend_from_slice(&next);
-        row0.extend_from_slice(&[0xAA, 0xBB]);
-
-        let mut row1 = Vec::new();
-        row1.extend_from_slice(&0u32.to_le_bytes());
-        row1.extend_from_slice(&[0xCC, 0xDD]);
-
-        let page1 = make_jet4_data_page(&[row0, row1]);
-        let mut reader = open_reader_with_page1(&page1);
-
-        let mut page_data = vec![0u8; 4096];
-        page_data[140..144].copy_from_slice(&0x00000100u32.to_le_bytes()); // page 1, row 0
-        let row_ptr: u16 = row::LOOKUP_FLAG | 140;
-
-        let got = read_multipage_row_data(&page_data, row_ptr, &mut reader, false).unwrap();
-        assert_eq!(got, vec![0xAA, 0xBB, 0xCC, 0xDD]);
     }
 
     // -- read_fixed_value (fixed types) ----------------------------------------
