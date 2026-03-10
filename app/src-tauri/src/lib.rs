@@ -457,8 +457,13 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
 
     let tmp_root = env::temp_dir().join(DEBUG_IMPORT_TEMP_DIR);
     if tmp_root.exists() {
-        fs::remove_dir_all(&tmp_root)
-            .map_err(|e| format!("Failed to clean temp directory {}: {}", tmp_root.display(), e))?;
+        fs::remove_dir_all(&tmp_root).map_err(|e| {
+            format!(
+                "Failed to clean temp directory {}: {}",
+                tmp_root.display(),
+                e
+            )
+        })?;
     }
     fs::create_dir_all(&tmp_root).map_err(|e| {
         format!(
@@ -477,11 +482,16 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
     log::info!("debug import temp root: {}", tmp_root.display());
     log::info!("debug import sqlite: {}", db_path.display());
 
-    let imported = mdb_import::import_mdb_impl_with_progress(mdb_path, &conn, &covers_path, |processed, total| {
-        if processed == 0 || processed % 250 == 0 || processed == total {
-            log::info!("import progress: {processed}/{total}");
-        }
-    })?;
+    let imported = mdb_import::import_mdb_impl_with_progress(
+        mdb_path,
+        &conn,
+        &covers_path,
+        |processed, total| {
+            if processed == 0 || processed % 250 == 0 || processed == total {
+                log::info!("import progress: {processed}/{total}");
+            }
+        },
+    )?;
 
     upsert_meta(
         &conn,
