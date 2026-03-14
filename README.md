@@ -6,9 +6,14 @@ This project is a modern rewrite of a Microsoft Access application I built for m
 
 ## Download & Install
 
-**For end users:** See [DOWNLOAD.md](DOWNLOAD.md) for ready-to-install packages (Linux .deb and Windows .msi).
+**For end users:** See [DOWNLOAD.md](DOWNLOAD.md) for installation instructions and links to release artifacts.
 
-Automated nightly builds are available at: https://github.com/ayllon/VinylVault/releases/tag/nightly
+Releases are published on GitHub from version tags (`v*`) and include:
+- Linux `.rpm`
+- Windows `.msi`
+
+Project releases page:
+- https://github.com/ayllon/VinylVault/releases
 
 ## Contents
 
@@ -21,7 +26,7 @@ Automated nightly builds are available at: https://github.com/ayllon/VinylVault/
 
 - Node.js (16+ recommended), `npm` or `pnpm`/`yarn`
 - Rust toolchain (rustup + cargo) for Tauri native builds
-- Tauri prerequisites (see https://tauri.app/v1/guides/getting-started/prerequisites)
+- Tauri prerequisites (see https://tauri.app/start/prerequisites)
 
 ## Development
 
