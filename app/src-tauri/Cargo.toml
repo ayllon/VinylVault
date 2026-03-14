@@ -1,6 +1,6 @@
 [package]
 name = "vinylvault"
-version = "0.1.2"
+version = "0.1.3"
 description = "VinylVault – desktop music collection manager"
 authors = ["a.alvarezayllon@gmail.com"]
 license = "GPL3"
