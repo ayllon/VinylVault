@@ -2,7 +2,8 @@ name: Build release artifacts
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -12,9 +13,107 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-gate:
+    name: Test Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Ensure tag matches Cargo version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          cargo_version=$(grep -m1 '^version = "' app/src-tauri/Cargo.toml | sed -E 's/^version = "([^"]+)"/\1/')
+
+          echo "Tag version: $tag_version"
+          echo "Cargo version: $cargo_version"
+
+          if [[ "$tag_version" != "$cargo_version" ]]; then
+            echo "Tag version ($tag_version) does not match Cargo.toml version ($cargo_version)"
+            exit 1
+          fi
+
+          echo "Tag and Cargo versions match."
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.22.0'
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # 1.15.3
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache Node modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            app/node_modules
+          key: ${{ runner.os }}-node-test-gate-${{ hashFiles('app/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-test-gate-
+            ${{ runner.os }}-node-
+
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src-tauri/target
+          key: ${{ runner.os }}-cargo-test-gate-${{ hashFiles('app/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-gate-
+            ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev
+
+      - name: Ensure Cargo and Tauri versions match
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cargo_version=$(grep -m1 '^version = "' app/src-tauri/Cargo.toml | sed -E 's/^version = "([^"]+)"/\1/')
+          tauri_version=$(grep -m1 '"version": "' app/src-tauri/tauri.conf.json | sed -E 's/.*"version": "([^"]+)".*/\1/')
+
+          echo "Cargo version: $cargo_version"
+          echo "Tauri config version: $tauri_version"
+
+          if [[ "$cargo_version" != "$tauri_version" ]]; then
+            echo "Version mismatch detected between app/src-tauri/Cargo.toml and app/src-tauri/tauri.conf.json"
+            exit 1
+          fi
+
+          echo "Versions are aligned."
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Run ESLint
+        working-directory: app
+        run: npm run lint
+
+      - name: TypeScript type checking
+        working-directory: app
+        run: npx tsc -b --noEmit
+
+      - name: Run Rust tests
+        working-directory: app/src-tauri
+        run: cargo test --verbose
+
   build:
     name: Build and package for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    needs: test-gate
     strategy:
       fail-fast: false
       matrix:
@@ -111,3 +210,23 @@ jobs:
           name: ${{ runner.os }}-installers
           path: artifacts/*
           retention-days: 7
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: '*-installers'
+          merge-multiple: true
+          path: release-artifacts
+
+      - name: Publish release with installers
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-artifacts/*
