@@ -162,20 +162,6 @@ jobs:
           # Install fpm (optional, used for deb/rpm packaging)
           sudo gem install --no-document fpm || true
 
-      - name: Set version with build ID
-        shell: bash
-        run: |
-          # Generate build ID: YY * 1000 + day_of_year (stays under 65535 limit)
-          YEAR=$(date +%y)
-          DAY_OF_YEAR=$(date +%j)
-          BUILD_ID=$((YEAR * 1000 + 10#$DAY_OF_YEAR))
-          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
-          VERSION=$(grep '"version"' app/src-tauri/tauri.conf.json | head -1 | cut -d'"' -f4)
-          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
-          NEW_VERSION="${MAJOR_MINOR}.${BUILD_ID}"
-          echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
-          ./scripts/update-version.sh $BUILD_ID
-
       - name: Install frontend dependencies
         working-directory: app
         run: npm install
