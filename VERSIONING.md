@@ -1,69 +1,44 @@
 # Versioning Strategy
 
-VinylVault uses semantic versioning with build ID suffixes for CI builds.
+VinylVault uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 
 ## Version Format
 
-- **Base version**: `MAJOR.MINOR.PATCH` (e.g., `0.1.0`)
-  - Stored in repository in:
-    - `app/src-tauri/tauri.conf.json`
-    - `app/src-tauri/Cargo.toml`
-    - `app/package.json`
-  
-- **CI build version**: `MAJOR.MINOR.BUILDID` (e.g., `0.1.26066`)
-  - Patch version is replaced with the build ID
-  - Used for automated builds to enable upgrades
-  - Build ID format: `YY * 1000 + day_of_year` (e.g., 26066 for day 66 of 2026)
-  - This format stays under the 65535 limit required by Windows MSI and other package formats
-  - Maximum value: 99365 (valid until year 2099)
+- **Version**: `MAJOR.MINOR.PATCH` (e.g., `0.1.0`)
+- Stored in two places that must always be in sync:
+  - `app/src-tauri/Cargo.toml`
+  - `app/src-tauri/tauri.conf.json`
 
-## Usage
+> `app/package.json` is not authoritative and does not need to match.
 
-### Manual Local Builds
+CI enforces that the two sources above agree before any build or release proceeds.
 
-For local development builds, the base version is used as-is. No action needed.
+## Release Workflow
 
-### CI Builds
+Releases are fully automated. You never create tags or edit version numbers by hand.
 
-The CI pipeline automatically appends a build ID to the version:
+### To cut a release
 
-1. The `release.yml` workflow generates a build ID using the current date
-2. Runs `./scripts/update-version.sh BUILDID` to update all version files
-3. Builds the app with the versioned files
-4. Publishes artifacts to a GitHub Release tagged as "nightly"
+1. Go to **Actions → Tag and version bump → Run workflow** on GitHub.
+2. Click **Run workflow**. No inputs required.
 
-**Stable download URLs:**
-- Linux: `https://github.com/ayllon/VinylVault/releases/download/nightly/vinylvault_amd64.deb`
-- Windows: `https://github.com/ayllon/VinylVault/releases/download/nightly/VinylVault_x64_en-US.msi`
+The workflow will:
+1. Read the current version from `app/src-tauri/Cargo.toml`.
+2. Fail early if a tag for that version already exists.
+3. Create and push the tag `v<version>` (e.g. `v0.1.0`), which triggers the release pipeline.
+4. Bump the patch segment and commit `chore: bump version to X.Y.Z [skip ci]` back to `main`.
 
-See [DOWNLOAD.md](DOWNLOAD.md) for complete installation instructions.
+### What the release pipeline does
 
-### Updating Version Manually
+The `release.yml` workflow fires automatically when a `v*` tag is pushed:
 
-To test versioning locally:
+1. **Test gate** — verifies:
+   - The tag matches the version in `Cargo.toml`.
+   - `Cargo.toml` and `tauri.conf.json` versions are identical.
+   - ESLint, TypeScript type-check, and Rust tests all pass.
+2. **Build** — compiles the app for Linux (`.rpm`) and Windows (`.msi`).
+3. **Publish** — creates a GitHub Release for the tag and attaches the installers.
 
-```bash
-# Show current version
-./scripts/update-version.sh
+### Major / minor version bumps
 
-# Update to a specific build version (use YY*1000 + day_of_year format)
-# For March 7, 2026 (day 66): 26 * 1000 + 66 = 26066
-./scripts/update-version.sh 26066
-
-# Or calculate it automatically:
-./scripts/update-version.sh $(($(date +%y) * 1000 + 10#$(date +%j)))
-
-# Revert changes
-git checkout app/src-tauri/tauri.conf.json app/src-tauri/Cargo.toml app/package.json
-```6066` natively
-- **Windows MSI (.msi)**: Requires patch version ≤ 65535 (our format satisfies this)
-
-This ensures that:
-- Users can upgrade from CI builds to newer CI builds
-- Each CI build has a unique, sortable version number based on date
-- Package managers correctly identify newer versions
-- Version numbers stay within the 65535 limit for all platform
-This ensures that:
-- Users can upgrade from CI builds to newer CI builds
-- Each CI build has a unique, sortable version number based on date
-- Package managers correctly identify newer versions
+The automated workflow always bumps the patch segment. For a minor or major bump, edit `Cargo.toml` and `tauri.conf.json` manually on `main` (keeping them in sync), then trigger the workflow as usual.

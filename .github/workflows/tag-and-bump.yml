@@ -1,0 +1,66 @@
+name: Tag and version bump
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-bump:
+    name: Tag current version, then bump for next development cycle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Read current version and tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version=$(grep -m1 '^version = "' app/src-tauri/Cargo.toml | sed -E 's/^version = "([^"]+)"/\1/')
+          echo "Current version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          tag="v${version}"
+
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists — aborting to avoid overwriting a release."
+            exit 1
+          fi
+
+          git tag -a "$tag" -m "Release $tag"
+          git push origin "$tag"
+          echo "Pushed tag $tag"
+
+      - name: Bump version for next development cycle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current="${{ steps.tag.outputs.version }}"
+          IFS='.' read -r major minor patch <<< "$current"
+
+          patch=$((patch + 1))
+
+          next="${major}.${minor}.${patch}"
+          echo "Bumping $current → $next"
+
+          sed -i "s/^version = \"${current}\"/version = \"${next}\"/" app/src-tauri/Cargo.toml
+          sed -i "s/\"version\": \"${current}\"/\"version\": \"${next}\"/" app/src-tauri/tauri.conf.json
+
+          git add app/src-tauri/Cargo.toml app/src-tauri/tauri.conf.json
+          git commit -m "chore: bump version to ${next} [skip ci]"
+          git push origin HEAD
+          echo "Pushed version bump to ${next}"
