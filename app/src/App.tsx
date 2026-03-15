@@ -48,6 +48,7 @@ interface RecordData {
   country: string | null;
   tracks: string | null;
   credits: string | null;
+  edition: string | null;
   notes: string | null;
   cd_cover_path: string | null;
   lp_cover_path: string | null;
@@ -433,6 +434,20 @@ function App() {
             menuPlacement="auto"
             menuShouldBlockScroll={true}
             theme={SELECT_THEME}
+          />
+        </div>
+
+        <div className="field-group edition">
+          <label>{t("fields.edition")}:</label>
+          <input
+            type="text"
+            value={currentRecord?.edition || ""}
+            onChange={(e) =>
+              currentRecord
+                ? setCurrentRecord({ ...currentRecord, edition: e.target.value })
+                : null
+            }
+            onBlur={handleSave}
           />
         </div>
 
