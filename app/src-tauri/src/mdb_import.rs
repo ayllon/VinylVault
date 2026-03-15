@@ -173,6 +173,7 @@ where
         let canciones = canciones_idx.and_then(|i| get_string_value(&row[i]));
         let creditos = creditos_idx.and_then(|i| get_string_value(&row[i]));
         let observ = observ_idx.and_then(|i| get_string_value(&row[i]));
+        let edition: Option<String> = None;
 
         let mut portada_cd_path: Option<String> = None;
         let mut portada_lp_path: Option<String> = None;
@@ -207,8 +208,8 @@ where
         // Insert into SQLite
         conn.execute(
             "INSERT INTO albums (
-                artist, title, format, year, style, country, tracks, credits, notes, cd_cover_path, lp_cover_path
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                artist, title, format, year, style, country, tracks, credits, edition, notes, cd_cover_path, lp_cover_path
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             rusqlite::params![
                 grupo,
                 titulo,
@@ -218,6 +219,7 @@ where
                 pais,
                 canciones,
                 creditos,
+                edition,
                 observ,
                 portada_cd_path,
                 portada_lp_path
@@ -284,6 +286,7 @@ mod tests {
                 country TEXT,
                 tracks TEXT,
                 credits TEXT,
+                edition TEXT,
                 notes TEXT,
                 cd_cover_path TEXT,
                 lp_cover_path TEXT

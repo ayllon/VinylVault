@@ -38,6 +38,7 @@ pub struct Record {
     pub country: Option<String>,
     pub tracks: Option<String>,
     pub credits: Option<String>,
+    pub edition: Option<String>,
     pub notes: Option<String>,
     pub cd_cover_path: Option<String>,
     pub lp_cover_path: Option<String>,
@@ -91,6 +92,7 @@ fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
                 country TEXT,
                 tracks TEXT,
                 credits TEXT,
+                edition TEXT,
                 notes TEXT,
                 cd_cover_path TEXT,
                 lp_cover_path TEXT
@@ -156,6 +158,7 @@ fn init_test_schema(conn: &Connection) -> Result<(), String> {
             country TEXT,
             tracks TEXT,
             credits TEXT,
+            edition TEXT,
             notes TEXT,
             cd_cover_path TEXT,
             lp_cover_path TEXT
@@ -188,10 +191,10 @@ fn get_total_records_impl(conn: &Connection) -> Result<u32, String> {
 fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT rowid, artist, title, format, year, style, country, tracks, credits, notes, cd_cover_path, lp_cover_path 
-         FROM albums
-         ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
-         LIMIT 1 OFFSET ?",
+            "SELECT rowid, artist, title, format, year, style, country, tracks, credits, edition, notes, cd_cover_path, lp_cover_path 
+            FROM albums
+            ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
+            LIMIT 1 OFFSET ?",
         )
         .map_err(|e| e.to_string())?;
 
@@ -207,9 +210,10 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
             country: row.get(6).unwrap_or(None),
             tracks: row.get(7).unwrap_or(None),
             credits: row.get(8).unwrap_or(None),
-            notes: row.get(9).unwrap_or(None),
-            cd_cover_path: row.get(10).unwrap_or(None),
-            lp_cover_path: row.get(11).unwrap_or(None),
+            edition: row.get(9).unwrap_or(None),
+            notes: row.get(10).unwrap_or(None),
+            cd_cover_path: row.get(11).unwrap_or(None),
+            lp_cover_path: row.get(12).unwrap_or(None),
         };
         Ok(record)
     } else {
@@ -319,8 +323,8 @@ fn add_record_impl(conn: &Connection) -> Result<u32, String> {
 
 fn update_record_impl(conn: &Connection, record: Record) -> Result<(), String> {
     conn.execute(
-        "UPDATE albums SET artist=?1, title=?2, format=?3, year=?4, style=?5, country=?6, tracks=?7, credits=?8, notes=?9 WHERE rowid=?10",
-        rusqlite::params![record.artist, record.title, record.format, record.year, record.style, record.country, record.tracks, record.credits, record.notes, record.id]
+        "UPDATE albums SET artist=?1, title=?2, format=?3, year=?4, style=?5, country=?6, tracks=?7, credits=?8, edition=?9, notes=?10 WHERE rowid=?11",
+        rusqlite::params![record.artist, record.title, record.format, record.year, record.style, record.country, record.tracks, record.credits, record.edition, record.notes, record.id]
     ).map_err(|e| e.to_string())?;
     Ok(())
 }

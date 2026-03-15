@@ -21,9 +21,10 @@
     "year": "Año",
     "style": "Estilo",
     "format": "Formato",
-    "observations": "OBSERV",
-    "songs": "CANCIONES",
-    "credits": "CREDITOS",
+    "edition": "Edición",
+    "observations": "Observaciones",
+    "songs": "Canciones",
+    "credits": "Créditos",
     "cd_cover": "Portada CD",
     "lp_cover": "Portada LP"
   },

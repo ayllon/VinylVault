@@ -202,8 +202,12 @@ body {
     grid-column: 4 / 5;
 }
 
+.edition {
+    grid-column: 1 / 2;
+}
+
 .notes {
-    grid-column: 1 / 5;
+    grid-column: 2 / 5;
 }
 /* Dropped the absolute red font for observation */
 
