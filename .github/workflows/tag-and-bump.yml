@@ -60,7 +60,22 @@ jobs:
           sed -i "s/^version = \"${current}\"/version = \"${next}\"/" app/src-tauri/Cargo.toml
           sed -i "s/\"version\": \"${current}\"/\"version\": \"${next}\"/" app/src-tauri/tauri.conf.json
 
-          git add app/src-tauri/Cargo.toml app/src-tauri/tauri.conf.json
+          # Keep lock files aligned with the updated manifests.
+          (
+            cd app
+            npm install --package-lock-only --ignore-scripts
+          )
+
+          (
+            cd app/src-tauri
+            cargo generate-lockfile
+          )
+
+          git add \
+            app/src-tauri/Cargo.toml \
+            app/src-tauri/tauri.conf.json \
+            app/package-lock.json \
+            app/src-tauri/Cargo.lock
           git commit -m "chore: bump version to ${next} [skip ci]"
           git push origin HEAD
           echo "Pushed version bump to ${next}"
