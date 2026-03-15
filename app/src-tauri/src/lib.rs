@@ -1,3 +1,4 @@
+mod cover_storage;
 mod mdb_import;
 mod sanitize;
 
@@ -9,6 +10,8 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
+
+use crate::cover_storage::resolve_cover_path_from_db;
 
 const DB_SCHEMA_VERSION: &str = "1";
 const META_KEY_SCHEMA_VERSION: &str = "schema_version";
@@ -346,7 +349,21 @@ fn get_total_records(state: State<AppState>) -> Result<u32, String> {
 #[tauri::command]
 fn get_record(offset: u32, state: State<AppState>) -> Result<Record, String> {
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
-    get_record_impl(&conn, offset)
+    let mut record = get_record_impl(&conn, offset)?;
+    let db_path = resolve_db_path()?;
+
+    record.cd_cover_path = record.cd_cover_path.as_deref().map(|p| {
+        resolve_cover_path_from_db(&db_path, p)
+            .to_string_lossy()
+            .to_string()
+    });
+    record.lp_cover_path = record.lp_cover_path.as_deref().map(|p| {
+        resolve_cover_path_from_db(&db_path, p)
+            .to_string_lossy()
+            .to_string()
+    });
+
+    Ok(record)
 }
 
 #[tauri::command]
@@ -419,6 +436,7 @@ async fn import_mdb(
         let imported_count = mdb_import::import_mdb_impl_with_progress(
             &mdb_path_buf,
             &conn,
+            &db_path,
             &covers_path,
             |processed, total| {
                 let percent = if total == 0 {
@@ -489,6 +507,7 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
     let imported = mdb_import::import_mdb_impl_with_progress(
         mdb_path,
         &conn,
+        &db_path,
         &covers_path,
         |processed, total| {
             if processed == 0 || processed % 250 == 0 || processed == total {

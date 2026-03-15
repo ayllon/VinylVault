@@ -1,23 +1,21 @@
+use crate::cover_storage::{path_relative_to_db, save_cover_image};
 use crate::sanitize::sanitize_key;
-use image::{ImageBuffer, ImageFormat, Rgb};
+use image::{ImageBuffer, Rgb};
 use jetdb::{read_catalog, read_table_def, read_table_rows, ObjectType, PageReader, Value};
 use rusqlite::Connection;
-use std::fs;
-use std::io::Cursor;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-/// Extract a DIB image from an MDB OLE Blob and return as ImageBuffer
+/// Extract a DIB image from an MDB OLE Blob and return as ImageBuffer.
 fn extract_ole_image(ole_data: &[u8]) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, String> {
-    // Find the DIB header (starts with 0x28000000 - BITMAPINFOHEADER size)
+    // Find the DIB header (starts with 0x28000000 - BITMAPINFOHEADER size).
     let dib_start = ole_data
         .windows(4)
         .position(|w| w == [0x28, 0x00, 0x00, 0x00])
         .ok_or("Could not find DIB header")?;
 
-    // Extract DIB data (everything from BITMAPINFOHEADER onward)
+    // Extract DIB data (everything from BITMAPINFOHEADER onward).
     let dib_data = &ole_data[dib_start..];
 
-    // Parse bit count to determine palette size
     if dib_data.len() < 40 {
         return Err("DIB data too short".to_string());
     }
@@ -34,53 +32,23 @@ fn extract_ole_image(ole_data: &[u8]) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, S
         0
     };
 
-    // Calculate pixel offset
     let pixel_offset = 14 + 40 + (num_colors * 4) as usize;
 
-    // Create BMP file header (14 bytes)
+    // Create BMP file header (14 bytes).
     let file_size = (dib_data.len() + 14) as u32;
     let mut bmp_header = Vec::with_capacity(14);
-    bmp_header.extend_from_slice(b"BM"); // Signature
-    bmp_header.extend_from_slice(&file_size.to_le_bytes()); // File size
-    bmp_header.extend_from_slice(&[0, 0, 0, 0]); // Reserved
-    bmp_header.extend_from_slice(&(pixel_offset as u32).to_le_bytes()); // Offset
+    bmp_header.extend_from_slice(b"BM");
+    bmp_header.extend_from_slice(&file_size.to_le_bytes());
+    bmp_header.extend_from_slice(&[0, 0, 0, 0]);
+    bmp_header.extend_from_slice(&(pixel_offset as u32).to_le_bytes());
 
-    // Combine header + DIB data
     let mut full_bmp = bmp_header;
     full_bmp.extend_from_slice(dib_data);
 
-    // Load BMP into image crate
     let img = image::load_from_memory_with_format(&full_bmp, image::ImageFormat::Bmp)
         .map_err(|e| format!("Failed to load BMP: {}", e))?;
 
     Ok(img.to_rgb8())
-}
-
-/// Save an extracted image to the covers directory structure
-fn save_cover_image(
-    image_data: &[u8],
-    covers_dir: &Path,
-    key: &str,
-    suffix: &str,
-) -> Result<PathBuf, String> {
-    // Extract image from OLE blob
-    let img = extract_ole_image(image_data)?;
-
-    // Create nested directory (first 2 chars of key)
-    let prefix = if key.len() >= 2 { &key[..2] } else { key };
-    let nested_dir = covers_dir.join(prefix);
-    fs::create_dir_all(&nested_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
-
-    // Save as JPEG
-    let cover_path = nested_dir.join(format!("{}_{}.jpeg", key, suffix));
-    let mut output = Cursor::new(Vec::new());
-    img.write_to(&mut output, ImageFormat::Jpeg)
-        .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
-
-    fs::write(&cover_path, output.into_inner())
-        .map_err(|e| format!("Failed to write image file: {}", e))?;
-
-    Ok(cover_path)
 }
 
 /// Check if the database is empty (no records in albums table)
@@ -95,6 +63,7 @@ pub fn is_db_empty_impl(conn: &Connection) -> Result<bool, String> {
 pub fn import_mdb_impl_with_progress<F>(
     mdb_path: &Path,
     conn: &Connection,
+    db_path: &Path,
     covers_dir: &Path,
     mut on_progress: F,
 ) -> Result<usize, String>
@@ -186,8 +155,17 @@ where
             if let Some(cd_idx) = cd_idx {
                 if let Some(cd_data) = get_binary_value(&row[cd_idx]) {
                     if !cd_data.is_empty() {
-                        if let Ok(path) = save_cover_image(cd_data, covers_dir, &key, "cd") {
-                            portada_cd_path = Some(path.to_string_lossy().to_string());
+                        if let Ok(img) = extract_ole_image(cd_data) {
+                            if let Ok(path) = save_cover_image(&img, covers_dir, &key, "cd") {
+                                match path_relative_to_db(db_path, &path) {
+                                    Ok(rel) => {
+                                        portada_cd_path = Some(rel.to_string_lossy().to_string());
+                                    }
+                                    Err(err) => {
+                                        log::warn!("Skipping CD cover path persistence: {err}");
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -197,8 +175,17 @@ where
             if let Some(lp_idx) = lp_idx {
                 if let Some(lp_data) = get_binary_value(&row[lp_idx]) {
                     if !lp_data.is_empty() {
-                        if let Ok(path) = save_cover_image(lp_data, covers_dir, &key, "lp") {
-                            portada_lp_path = Some(path.to_string_lossy().to_string());
+                        if let Ok(img) = extract_ole_image(lp_data) {
+                            if let Ok(path) = save_cover_image(&img, covers_dir, &key, "lp") {
+                                match path_relative_to_db(db_path, &path) {
+                                    Ok(rel) => {
+                                        portada_lp_path = Some(rel.to_string_lossy().to_string());
+                                    }
+                                    Err(err) => {
+                                        log::warn!("Skipping LP cover path persistence: {err}");
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -330,9 +317,11 @@ mod tests {
         let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
         let mut progress_calls = 0usize;
 
-        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &covers_dir, |_, _| {
-            progress_calls += 1;
-        });
+        let db_path = Path::new("/tmp/discos.sqlite");
+        let result =
+            import_mdb_impl_with_progress(missing_mdb, &conn, db_path, &covers_dir, |_, _| {
+                progress_calls += 1;
+            });
 
         assert!(result.is_err());
         let err = result.expect_err("expected error");
@@ -347,9 +336,11 @@ mod tests {
         let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
         let mut progress_calls = 0usize;
 
-        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &covers_dir, |_, _| {
-            progress_calls += 1;
-        });
+        let db_path = Path::new("/tmp/discos.sqlite");
+        let result =
+            import_mdb_impl_with_progress(missing_mdb, &conn, db_path, &covers_dir, |_, _| {
+                progress_calls += 1;
+            });
 
         assert!(result.is_err());
         let err = result.expect_err("expected error");
