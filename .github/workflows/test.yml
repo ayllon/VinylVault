@@ -161,7 +161,6 @@ jobs:
     name: Analyze (TypeScript · Rust · Python)
     runs-on: ubuntu-latest
     needs: version-alignment
-    if: ${{ secrets.SONAR_TOKEN != '' }}
 
     steps:
       - name: Checkout
