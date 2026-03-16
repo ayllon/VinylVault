@@ -753,6 +753,26 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn make_unique_tmp_dir(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("vinylvault-lib-{label}-{nanos}"));
+        fs::create_dir_all(&dir).expect("failed to create temp directory");
+        dir
+    }
+
+    fn setup_cover_storage_for_test(label: &str) -> (PathBuf, CoverStorage) {
+        let root = make_unique_tmp_dir(label);
+        let db_path = root.join("discos.sqlite");
+        let storage = CoverStorage::new(&db_path).expect("cover storage init failed");
+        (root, storage)
+    }
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open(":memory:").expect("Failed to create in-memory DB");
@@ -869,5 +889,116 @@ mod tests {
         assert_eq!(result.groups[0], "Nuevo Grupo");
         assert_eq!(result.titles.len(), 1);
         assert_eq!(result.titles[0], "Nuevo Disco");
+    }
+
+    #[test]
+    fn test_save_cover_from_rgba_updates_db_and_returns_absolute_path() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["The Artist", "Test Album"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("save-cover");
+
+        let abs_path = save_cover_from_rgba_impl(
+            &conn,
+            &cover_storage,
+            1,
+            vec![255, 0, 0, 255],
+            1,
+            1,
+            "cd",
+        )
+        .expect("save cover failed");
+
+        let stored_rel: String = conn
+            .query_row("SELECT cd_cover_path FROM albums WHERE rowid=?1", [1], |row| {
+                row.get(0)
+            })
+            .expect("failed to query stored cover path");
+
+        assert!(stored_rel.starts_with("covers/"));
+        assert!(Path::new(&abs_path).is_absolute());
+        assert!(Path::new(&abs_path).exists());
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
+    }
+
+    #[test]
+    fn test_save_cover_from_rgba_rejects_invalid_suffix() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["The Artist", "Test Album"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("invalid-save-suffix");
+
+        let err = save_cover_from_rgba_impl(
+            &conn,
+            &cover_storage,
+            1,
+            vec![255, 0, 0, 255],
+            1,
+            1,
+            "cassette",
+        )
+        .expect_err("expected invalid suffix to fail");
+
+        assert!(err.contains("Invalid suffix"));
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
+    }
+
+    #[test]
+    fn test_delete_cover_for_record_deletes_file_and_clears_column() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title, cd_cover_path) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["The Artist", "Test Album", "covers/te/test_cd_deadbe.jpg"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("delete-cover");
+        let abs_cover = root.join("covers/te/test_cd_deadbe.jpg");
+        fs::create_dir_all(abs_cover.parent().expect("parent missing"))
+            .expect("failed to create cover folder");
+        fs::write(&abs_cover, [1u8, 2u8, 3u8]).expect("failed to write fake cover");
+
+        delete_cover_for_record_impl(&conn, &cover_storage, 1, "cd")
+            .expect("delete cover failed");
+
+        let stored: Option<String> = conn
+            .query_row("SELECT cd_cover_path FROM albums WHERE rowid=?1", [1], |row| {
+                row.get(0)
+            })
+            .expect("failed to query stored path after delete");
+
+        assert!(stored.is_none());
+        assert!(!abs_cover.exists());
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
+    }
+
+    #[test]
+    fn test_delete_cover_for_record_rejects_invalid_suffix() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["The Artist", "Test Album"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("invalid-delete-suffix");
+
+        let err = delete_cover_for_record_impl(&conn, &cover_storage, 1, "tape")
+            .expect_err("expected invalid suffix to fail");
+
+        assert!(err.contains("Invalid suffix"));
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
     }
 }
