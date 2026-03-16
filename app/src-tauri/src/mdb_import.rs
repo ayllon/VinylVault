@@ -1,4 +1,4 @@
-use crate::cover_storage::{path_relative_to_db, save_cover_image};
+use crate::cover_storage::CoverStorage;
 use crate::sanitize::sanitize_key;
 use image::{ImageBuffer, Rgb};
 use jetdb::{read_catalog, read_table_def, read_table_rows, ObjectType, PageReader, Value};
@@ -63,8 +63,7 @@ pub fn is_db_empty_impl(conn: &Connection) -> Result<bool, String> {
 pub fn import_mdb_impl_with_progress<F>(
     mdb_path: &Path,
     conn: &Connection,
-    db_path: &Path,
-    covers_dir: &Path,
+    cover_storage: &CoverStorage,
     mut on_progress: F,
 ) -> Result<usize, String>
 where
@@ -156,15 +155,8 @@ where
                 if let Some(cd_data) = get_binary_value(&row[cd_idx]) {
                     if !cd_data.is_empty() {
                         if let Ok(img) = extract_ole_image(cd_data) {
-                            if let Ok(path) = save_cover_image(&img, covers_dir, &key, "cd") {
-                                match path_relative_to_db(db_path, &path) {
-                                    Ok(rel) => {
-                                        portada_cd_path = Some(rel.to_string_lossy().to_string());
-                                    }
-                                    Err(err) => {
-                                        log::warn!("Skipping CD cover path persistence: {err}");
-                                    }
-                                }
+                            if let Ok(rel) = cover_storage.save_cover_image(&img, &key, "cd") {
+                                portada_cd_path = Some(rel.to_string_lossy().to_string());
                             }
                         }
                     }
@@ -176,15 +168,8 @@ where
                 if let Some(lp_data) = get_binary_value(&row[lp_idx]) {
                     if !lp_data.is_empty() {
                         if let Ok(img) = extract_ole_image(lp_data) {
-                            if let Ok(path) = save_cover_image(&img, covers_dir, &key, "lp") {
-                                match path_relative_to_db(db_path, &path) {
-                                    Ok(rel) => {
-                                        portada_lp_path = Some(rel.to_string_lossy().to_string());
-                                    }
-                                    Err(err) => {
-                                        log::warn!("Skipping LP cover path persistence: {err}");
-                                    }
-                                }
+                            if let Ok(rel) = cover_storage.save_cover_image(&img, &key, "lp") {
+                                portada_lp_path = Some(rel.to_string_lossy().to_string());
                             }
                         }
                     }
@@ -313,15 +298,14 @@ mod tests {
         )
         .expect("insert failed");
 
-        let covers_dir = std::env::temp_dir().join("vinylvault-test-covers-non-empty");
         let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
         let mut progress_calls = 0usize;
 
         let db_path = Path::new("/tmp/discos.sqlite");
-        let result =
-            import_mdb_impl_with_progress(missing_mdb, &conn, db_path, &covers_dir, |_, _| {
-                progress_calls += 1;
-            });
+        let cover_storage = CoverStorage::new(db_path).expect("cover storage init failed");
+        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &cover_storage, |_, _| {
+            progress_calls += 1;
+        });
 
         assert!(result.is_err());
         let err = result.expect_err("expected error");
@@ -332,15 +316,14 @@ mod tests {
     #[test]
     fn test_import_mdb_missing_file_returns_open_error_on_empty_db() {
         let conn = setup_test_db();
-        let covers_dir = std::env::temp_dir().join("vinylvault-test-covers-empty");
         let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
         let mut progress_calls = 0usize;
 
         let db_path = Path::new("/tmp/discos.sqlite");
-        let result =
-            import_mdb_impl_with_progress(missing_mdb, &conn, db_path, &covers_dir, |_, _| {
-                progress_calls += 1;
-            });
+        let cover_storage = CoverStorage::new(db_path).expect("cover storage init failed");
+        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &cover_storage, |_, _| {
+            progress_calls += 1;
+        });
 
         assert!(result.is_err());
         let err = result.expect_err("expected error");

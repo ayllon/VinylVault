@@ -72,12 +72,6 @@ function getImageSrc(path: string | null | undefined): string {
   return convertFileSrc(path);
 }
 
-function getImageSrcWithVersion(path: string | null | undefined, version: number): string {
-  const src = getImageSrc(path);
-  if (!src) return "";
-  return `${src}?v=${version}`;
-}
-
 function App() {
   const { t } = useTranslation();
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
@@ -100,10 +94,6 @@ function App() {
   const [searchArtist, setSearchArtist] = useState<string>("");
   const [searchAlbum, setSearchAlbum] = useState<string>("");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [coverVersion, setCoverVersion] = useState<{ cd: number; lp: number }>({
-    cd: 0,
-    lp: 0,
-  });
 
   // Check if DB is empty on mount
   useEffect(() => {
@@ -309,10 +299,8 @@ function App() {
 
       if (suffix === "cd") {
         setCurrentRecord({ ...currentRecord, cd_cover_path: newPath });
-        setCoverVersion((prev) => ({ ...prev, cd: prev.cd + 1 }));
       } else {
         setCurrentRecord({ ...currentRecord, lp_cover_path: newPath });
-        setCoverVersion((prev) => ({ ...prev, lp: prev.lp + 1 }));
       }
     } catch (error) {
       console.error("Failed to read clipboard:", error);
@@ -598,7 +586,7 @@ function App() {
           >
             {currentRecord?.cd_cover_path && (
               <img
-                src={getImageSrcWithVersion(currentRecord.cd_cover_path, coverVersion.cd)}
+                src={getImageSrc(currentRecord.cd_cover_path)}
                 alt={`${currentRecord.title || "Album"} - CD Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
@@ -617,7 +605,7 @@ function App() {
           >
             {currentRecord?.lp_cover_path && (
               <img
-                src={getImageSrcWithVersion(currentRecord.lp_cover_path, coverVersion.lp)}
+                src={getImageSrc(currentRecord.lp_cover_path)}
                 alt={`${currentRecord.title || "Album"} - LP Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-use crate::cover_storage::resolve_cover_path_from_db;
+use crate::cover_storage::CoverStorage;
 
 const DB_SCHEMA_VERSION: &str = "1";
 const META_KEY_SCHEMA_VERSION: &str = "schema_version";
@@ -22,6 +22,7 @@ const DEBUG_IMPORT_TEMP_DIR: &str = "vinylvault-mdb-import-debug";
 #[derive(Clone)]
 struct AppState {
     db_pool: Pool<SqliteConnectionManager>,
+    cover_storage: CoverStorage,
 }
 
 #[derive(Serialize, Clone)]
@@ -341,6 +342,7 @@ fn delete_record_impl(conn: &Connection, id: i64) -> Result<(), String> {
 
 fn save_cover_from_rgba_impl(
     conn: &Connection,
+    cover_storage: &CoverStorage,
     record_id: i64,
     image_bytes: Vec<u8>,
     image_width: u32,
@@ -348,8 +350,13 @@ fn save_cover_from_rgba_impl(
     suffix: &str,
 ) -> Result<String, String> {
     use image::{DynamicImage, ImageBuffer, Rgba};
-    use crate::cover_storage::{save_cover_image, path_relative_to_db};
     use crate::sanitize::sanitize_key;
+
+    let col_name = match suffix {
+        "cd" => "cd_cover_path",
+        "lp" => "lp_cover_path",
+        _ => return Err(format!("Invalid suffix: {}", suffix)),
+    };
 
     // Fetch the record to get the title
     let title: Option<String> = conn
@@ -363,6 +370,17 @@ fn save_cover_from_rgba_impl(
     let title = title.ok_or("Record has no title; cannot save cover")?;
     let key = sanitize_key(&title);
 
+    let existing_cover_query = format!("SELECT {} FROM albums WHERE rowid=?1", col_name);
+    let existing_cover: Option<String> = conn
+        .query_row(&existing_cover_query, [record_id], |row| row.get(0))
+        .map_err(|e| format!("Failed to fetch existing cover path: {}", e))?;
+
+    if let Some(existing_cover) = existing_cover {
+        if !existing_cover.trim().is_empty() {
+            cover_storage.delete_cover(&existing_cover)?;
+        }
+    }
+
     let rgba = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(image_width, image_height, image_bytes)
         .ok_or_else(|| {
             format!(
@@ -372,31 +390,15 @@ fn save_cover_from_rgba_impl(
         })?;
     let rgb_img = DynamicImage::ImageRgba8(rgba).to_rgb8();
 
-    // Get database and covers directory
-    let db_path = resolve_db_path()?;
-    let covers_dir = db_path
-        .parent()
-        .ok_or("Invalid database path")?
-        .join("covers");
-
-    // Save the image
-    let cover_path = save_cover_image(&rgb_img, &covers_dir, &key, suffix)?;
-
-    // Convert to relative path for storage in DB
-    let rel_path = path_relative_to_db(&db_path, &cover_path)?;
+    // Save cover and get the DB-storable relative path.
+    let rel_path = cover_storage.save_cover_image(&rgb_img, &key, suffix)?;
     let rel_path_str = rel_path.to_string_lossy().to_string();
-
-    // Update the database
-    let col_name = match suffix {
-        "cd" => "cd_cover_path",
-        "lp" => "lp_cover_path",
-        _ => return Err(format!("Invalid suffix: {}", suffix)),
-    };
 
     let query = format!("UPDATE albums SET {} = ?1 WHERE rowid = ?2", col_name);
     conn.execute(&query, rusqlite::params![rel_path_str.clone(), record_id])
         .map_err(|e| format!("Failed to update record: {}", e))?;
 
+    let cover_path = cover_storage.resolve_cover_path_from_db(&rel_path_str);
     Ok(cover_path.to_string_lossy().to_string())
 }
 
@@ -412,15 +414,18 @@ fn get_total_records(state: State<AppState>) -> Result<u32, String> {
 fn get_record(offset: u32, state: State<AppState>) -> Result<Record, String> {
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
     let mut record = get_record_impl(&conn, offset)?;
-    let db_path = resolve_db_path()?;
 
     record.cd_cover_path = record.cd_cover_path.as_deref().map(|p| {
-        resolve_cover_path_from_db(&db_path, p)
+        state
+            .cover_storage
+            .resolve_cover_path_from_db(p)
             .to_string_lossy()
             .to_string()
     });
     record.lp_cover_path = record.lp_cover_path.as_deref().map(|p| {
-        resolve_cover_path_from_db(&db_path, p)
+        state
+            .cover_storage
+            .resolve_cover_path_from_db(p)
             .to_string_lossy()
             .to_string()
     });
@@ -474,6 +479,7 @@ fn save_cover_paste(
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
     save_cover_from_rgba_impl(
         &conn,
+        &state.cover_storage,
         record_id,
         image_bytes,
         image_width,
@@ -499,13 +505,8 @@ fn copy_cover_to_clipboard(app: tauri::AppHandle, cover_path: String) -> Result<
 }
 
 #[tauri::command]
-fn get_covers_dir() -> Result<String, String> {
-    let db_path = resolve_db_path()?;
-    let covers_dir = db_path
-        .parent()
-        .ok_or("Invalid database path")?
-        .join("covers");
-    Ok(covers_dir.to_string_lossy().to_string())
+fn get_covers_dir(state: State<AppState>) -> Result<String, String> {
+    Ok(state.cover_storage.covers_dir().to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -520,11 +521,8 @@ async fn import_mdb(
     state: State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<usize, String> {
-    let db_path = resolve_db_path()?;
-    let covers_dir = db_path.parent().ok_or("Invalid database path")?;
-    let covers_path = covers_dir.join("covers");
-
     let pool = state.db_pool.clone();
+    let cover_storage = state.cover_storage.clone();
     let app_handle = app.clone();
     let mdb_path_buf = PathBuf::from(mdb_path);
 
@@ -534,8 +532,7 @@ async fn import_mdb(
         let imported_count = mdb_import::import_mdb_impl_with_progress(
             &mdb_path_buf,
             &conn,
-            &db_path,
-            &covers_path,
+            &cover_storage,
             |processed, total| {
                 let percent = if total == 0 {
                     0.0
@@ -594,7 +591,7 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
     })?;
 
     let db_path = tmp_root.join("debug.sqlite");
-    let covers_path = tmp_root.join("covers");
+    let cover_storage = CoverStorage::new(&db_path)?;
 
     init_db_if_needed(&db_path)?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
@@ -605,8 +602,7 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
     let imported = mdb_import::import_mdb_impl_with_progress(
         mdb_path,
         &conn,
-        &db_path,
-        &covers_path,
+        &cover_storage,
         |processed, total| {
             if processed == 0 || processed % 250 == 0 || processed == total {
                 log::info!("import progress: {processed}/{total}");
@@ -628,11 +624,15 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
 pub fn run() {
     let db_path = resolve_db_path().expect("Failed to resolve database path");
     init_db_if_needed(&db_path).expect("Failed to initialize database");
+    let cover_storage = CoverStorage::new(&db_path).expect("Failed to initialize cover storage");
 
     let manager = SqliteConnectionManager::file(&db_path);
     let pool = Pool::new(manager).expect("Failed to create connection pool");
 
-    let app_state = AppState { db_pool: pool };
+    let app_state = AppState {
+        db_pool: pool,
+        cover_storage,
+    };
 
     tauri::Builder::default()
         .manage(app_state)
