@@ -52,7 +52,6 @@
     "copy": "Copiar"
   },
 
-  "cover_paste_hint": "Pega una imagen aquí",
   "cover_paste_error": "Error al guardar la portada {{type}}",
   "cover_copy_error": "Error al copiar la portada: {{error}}"
 }

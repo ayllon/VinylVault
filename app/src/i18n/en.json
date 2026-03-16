@@ -52,7 +52,6 @@
     "copy": "Copy"
   },
 
-  "cover_paste_hint": "Paste an image here",
   "cover_paste_error": "Error saving {{type}} cover",
   "cover_copy_error": "Error copying cover: {{error}}"
 }

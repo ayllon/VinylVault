@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readImage } from "@tauri-apps/plugin-clipboard-manager";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
 import "./App.css";
@@ -285,15 +284,8 @@ function App() {
     }
 
     try {
-      const clipboardImage = await readImage();
-      const rgba = Array.from(await clipboardImage.rgba());
-      const { width, height } = await clipboardImage.size();
-
-      const newPath = await invoke<string>("save_cover_paste", {
+      const newPath = await invoke<string>("save_cover_paste_from_clipboard", {
         recordId: currentRecord.id,
-        imageBytes: rgba,
-        imageWidth: width,
-        imageHeight: height,
         suffix,
       });
 
@@ -582,7 +574,6 @@ function App() {
             type="button"
             className="photo-box"
             onContextMenu={(e) => handleCoverContextMenu(e, "cd")}
-            title={t("cover_paste_hint")}
           >
             {currentRecord?.cd_cover_path && (
               <img
@@ -601,7 +592,6 @@ function App() {
             type="button"
             className="photo-box"
             onContextMenu={(e) => handleCoverContextMenu(e, "lp")}
-            title={t("cover_paste_hint")}
           >
             {currentRecord?.lp_cover_path && (
               <img

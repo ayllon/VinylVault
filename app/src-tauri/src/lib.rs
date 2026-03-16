@@ -489,19 +489,60 @@ fn save_cover_paste(
 }
 
 #[tauri::command]
-fn copy_cover_to_clipboard(app: tauri::AppHandle, cover_path: String) -> Result<(), String> {
+async fn save_cover_paste_from_clipboard(
+    record_id: i64,
+    suffix: String,
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    let pool = state.db_pool.clone();
+    let cover_storage = state.cover_storage.clone();
+    let app_handle = app.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        // Clipboard read is intentionally done off the main thread to avoid Linux deadlocks.
+        let clipboard_image = app_handle
+            .clipboard()
+            .read_image()
+            .map_err(|e| format!("Failed to read image from clipboard: {}", e))?
+            .to_owned();
+
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        save_cover_from_rgba_impl(
+            &conn,
+            &cover_storage,
+            record_id,
+            clipboard_image.rgba().to_vec(),
+            clipboard_image.width(),
+            clipboard_image.height(),
+            &suffix,
+        )
+    })
+    .await
+    .map_err(|e| format!("Paste task failed: {}", e))?
+}
+
+#[tauri::command]
+async fn copy_cover_to_clipboard(app: tauri::AppHandle, cover_path: String) -> Result<(), String> {
     use tauri::image::Image;
 
-    let path = Path::new(&cover_path);
-    let dyn_img = image::open(path)
-        .map_err(|e| format!("Failed to open image '{}': {}", cover_path, e))?;
-    let rgba = dyn_img.to_rgba8();
-    let (width, height) = rgba.dimensions();
+    let app_handle = app.clone();
 
-    let img = Image::new_owned(rgba.into_raw(), width, height);
-    app.clipboard()
-        .write_image(&img)
-        .map_err(|e| format!("Failed to write image to clipboard: {}", e))
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = Path::new(&cover_path);
+        let dyn_img = image::open(path)
+            .map_err(|e| format!("Failed to open image '{}': {}", cover_path, e))?;
+        let rgba = dyn_img.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        let img = Image::new_owned(rgba.into_raw(), width, height);
+        app_handle
+            .clipboard()
+            .write_image(&img)
+            .map_err(|e| format!("Failed to write image to clipboard: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Copy task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -648,6 +689,7 @@ pub fn run() {
             update_record,
             delete_record,
             save_cover_paste,
+            save_cover_paste_from_clipboard,
             copy_cover_to_clipboard,
             get_covers_dir,
             is_db_empty,
