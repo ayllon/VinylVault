@@ -47,6 +47,12 @@
     "delete": "Borrar",
     "cancel": "Cancelar",
     "confirm_delete": "Confirmar borrado",
-    "delete_sure": "¿Estás seguro de que quieres borrar este registro?"
-  }
+    "delete_sure": "¿Estás seguro de que quieres borrar este registro?",
+    "paste": "Pegar",
+    "copy": "Copiar"
+  },
+
+  "cover_paste_hint": "Pega una imagen aquí",
+  "cover_paste_error": "Error al guardar la portada {{type}}",
+  "cover_copy_error": "Error al copiar la portada: {{error}}"
 }

@@ -10,6 +10,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::cover_storage::resolve_cover_path_from_db;
 
@@ -338,6 +339,67 @@ fn delete_record_impl(conn: &Connection, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+fn save_cover_from_rgba_impl(
+    conn: &Connection,
+    record_id: i64,
+    image_bytes: Vec<u8>,
+    image_width: u32,
+    image_height: u32,
+    suffix: &str,
+) -> Result<String, String> {
+    use image::{DynamicImage, ImageBuffer, Rgba};
+    use crate::cover_storage::{save_cover_image, path_relative_to_db};
+    use crate::sanitize::sanitize_key;
+
+    // Fetch the record to get the title
+    let title: Option<String> = conn
+        .query_row(
+            "SELECT title FROM albums WHERE rowid=?1",
+            [record_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to fetch record: {}", e))?;
+
+    let title = title.ok_or("Record has no title; cannot save cover")?;
+    let key = sanitize_key(&title);
+
+    let rgba = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(image_width, image_height, image_bytes)
+        .ok_or_else(|| {
+            format!(
+                "Invalid RGBA buffer size for dimensions {}x{}",
+                image_width, image_height
+            )
+        })?;
+    let rgb_img = DynamicImage::ImageRgba8(rgba).to_rgb8();
+
+    // Get database and covers directory
+    let db_path = resolve_db_path()?;
+    let covers_dir = db_path
+        .parent()
+        .ok_or("Invalid database path")?
+        .join("covers");
+
+    // Save the image
+    let cover_path = save_cover_image(&rgb_img, &covers_dir, &key, suffix)?;
+
+    // Convert to relative path for storage in DB
+    let rel_path = path_relative_to_db(&db_path, &cover_path)?;
+    let rel_path_str = rel_path.to_string_lossy().to_string();
+
+    // Update the database
+    let col_name = match suffix {
+        "cd" => "cd_cover_path",
+        "lp" => "lp_cover_path",
+        _ => return Err(format!("Invalid suffix: {}", suffix)),
+    };
+
+    let query = format!("UPDATE albums SET {} = ?1 WHERE rowid = ?2", col_name);
+    conn.execute(&query, rusqlite::params![rel_path_str.clone(), record_id])
+        .map_err(|e| format!("Failed to update record: {}", e))?;
+
+    Ok(cover_path.to_string_lossy().to_string())
+}
+
 // Tauri command handlers (thin wrappers around _impl)
 
 #[tauri::command]
@@ -398,6 +460,42 @@ fn update_record(record: Record, state: State<AppState>) -> Result<(), String> {
 fn delete_record(id: i64, state: State<AppState>) -> Result<(), String> {
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
     delete_record_impl(&conn, id)
+}
+
+#[tauri::command]
+fn save_cover_paste(
+    record_id: i64,
+    image_bytes: Vec<u8>,
+    image_width: u32,
+    image_height: u32,
+    suffix: String,
+    state: State<AppState>,
+) -> Result<String, String> {
+    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
+    save_cover_from_rgba_impl(
+        &conn,
+        record_id,
+        image_bytes,
+        image_width,
+        image_height,
+        &suffix,
+    )
+}
+
+#[tauri::command]
+fn copy_cover_to_clipboard(app: tauri::AppHandle, cover_path: String) -> Result<(), String> {
+    use tauri::image::Image;
+
+    let path = Path::new(&cover_path);
+    let dyn_img = image::open(path)
+        .map_err(|e| format!("Failed to open image '{}': {}", cover_path, e))?;
+    let rgba = dyn_img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+
+    let img = Image::new_owned(rgba.into_raw(), width, height);
+    app.clipboard()
+        .write_image(&img)
+        .map_err(|e| format!("Failed to write image to clipboard: {}", e))
 }
 
 #[tauri::command]
@@ -540,6 +638,7 @@ pub fn run() {
         .manage(app_state)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             get_total_records,
             get_record,
@@ -548,6 +647,8 @@ pub fn run() {
             add_record,
             update_record,
             delete_record,
+            save_cover_paste,
+            copy_cover_to_clipboard,
             get_covers_dir,
             is_db_empty,
             import_mdb,

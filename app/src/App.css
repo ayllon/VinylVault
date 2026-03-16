@@ -163,6 +163,14 @@ body {
 }
 
 .photo-box {
+    appearance: none;
+    -webkit-appearance: none;
+    font: inherit;
+    color: inherit;
+    text-align: initial;
+    padding: 0;
+    margin: 0;
+    cursor: default;
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -489,4 +497,39 @@ body {
 
 .confirm-delete:hover {
     background: #9b2c2c;
+}
+
+.context-menu {
+    position: fixed;
+    background: #ffffff;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    z-index: 30000;
+    min-width: 150px;
+}
+
+.context-menu button {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    color: #2d3748;
+    font-size: 14px;
+    transition: background-color 0.15s;
+}
+
+.context-menu button:first-child {
+    border-radius: 6px 6px 0 0;
+}
+
+.context-menu button:last-child {
+    border-radius: 0 0 6px 6px;
+}
+
+.context-menu button:hover {
+    background-color: #ebf8ff;
 }

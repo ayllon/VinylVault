@@ -9,6 +9,8 @@
     "core:default",
     "dialog:default",
     "fs:default",
+    "clipboard-manager:allow-read-image",
+    "clipboard-manager:allow-write-image",
     {
       "identifier": "fs:allow-read",
       "allow": [

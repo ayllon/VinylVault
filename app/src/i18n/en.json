@@ -47,6 +47,12 @@
     "delete": "Delete",
     "cancel": "Cancel",
     "confirm_delete": "Confirm delete",
-    "delete_sure": "Are you sure you want to delete this record?"
-  }
+    "delete_sure": "Are you sure you want to delete this record?",
+    "paste": "Paste",
+    "copy": "Copy"
+  },
+
+  "cover_paste_hint": "Paste an image here",
+  "cover_paste_error": "Error saving {{type}} cover",
+  "cover_copy_error": "Error copying cover: {{error}}"
 }

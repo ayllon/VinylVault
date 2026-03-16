@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { readImage } from "@tauri-apps/plugin-clipboard-manager";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
 import "./App.css";
@@ -71,6 +72,12 @@ function getImageSrc(path: string | null | undefined): string {
   return convertFileSrc(path);
 }
 
+function getImageSrcWithVersion(path: string | null | undefined, version: number): string {
+  const src = getImageSrc(path);
+  if (!src) return "";
+  return `${src}?v=${version}`;
+}
+
 function App() {
   const { t } = useTranslation();
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
@@ -85,12 +92,18 @@ function App() {
   const [groups, setGroups] = useState<string[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
   const [formats, setFormats] = useState<string[]>([]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; suffix: "cd" | "lp" } | null>(null);
 
   const loadSeqRef = useRef(0);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [searchArtist, setSearchArtist] = useState<string>("");
   const [searchAlbum, setSearchAlbum] = useState<string>("");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [coverVersion, setCoverVersion] = useState<{ cd: number; lp: number }>({
+    cd: 0,
+    lp: 0,
+  });
 
   // Check if DB is empty on mount
   useEffect(() => {
@@ -181,6 +194,22 @@ function App() {
     };
   }, [deleteTargetId]);
 
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (contextMenuRef.current && target && !contextMenuRef.current.contains(target)) {
+        setContextMenu(null);
+      }
+    };
+
+    globalThis.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      globalThis.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [contextMenu]);
+
   async function handleImport() {
     try {
       const selected = await open({
@@ -248,6 +277,68 @@ function App() {
       setRecordIndex(offset);
     } catch {
       alert("No se encontro el registro.");
+    }
+  }
+
+  async function handleCoverContextMenu(
+    e: React.MouseEvent<HTMLButtonElement>,
+    suffix: "cd" | "lp"
+  ) {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, suffix });
+  }
+
+  async function pasteFromClipboard(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      const clipboardImage = await readImage();
+      const rgba = Array.from(await clipboardImage.rgba());
+      const { width, height } = await clipboardImage.size();
+
+      const newPath = await invoke<string>("save_cover_paste", {
+        recordId: currentRecord.id,
+        imageBytes: rgba,
+        imageWidth: width,
+        imageHeight: height,
+        suffix,
+      });
+
+      if (suffix === "cd") {
+        setCurrentRecord({ ...currentRecord, cd_cover_path: newPath });
+        setCoverVersion((prev) => ({ ...prev, cd: prev.cd + 1 }));
+      } else {
+        setCurrentRecord({ ...currentRecord, lp_cover_path: newPath });
+        setCoverVersion((prev) => ({ ...prev, lp: prev.lp + 1 }));
+      }
+    } catch (error) {
+      console.error("Failed to read clipboard:", error);
+      alert(t("cover_paste_error", { type: suffix }));
+    }
+    setContextMenu(null);
+  }
+
+  async function copyToClipboard(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    const coverPath = suffix === "cd" ? currentRecord.cd_cover_path : currentRecord.lp_cover_path;
+    if (!coverPath) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      await invoke("copy_cover_to_clipboard", { coverPath });
+      setContextMenu(null);
+    } catch (error) {
+      console.error("Failed to copy image to clipboard:", error);
+      alert(t("cover_copy_error", { type: suffix, error: String(error) }));
     }
   }
 
@@ -499,30 +590,40 @@ function App() {
 
         <div className="field-group photo-cd-wrapper">
           <label>{t("fields.cd_cover")}</label>
-          <div className="photo-box">
+          <button
+            type="button"
+            className="photo-box"
+            onContextMenu={(e) => handleCoverContextMenu(e, "cd")}
+            title={t("cover_paste_hint")}
+          >
             {currentRecord?.cd_cover_path && (
               <img
-                src={getImageSrc(currentRecord.cd_cover_path)}
+                src={getImageSrcWithVersion(currentRecord.cd_cover_path, coverVersion.cd)}
                 alt={`${currentRecord.title || "Album"} - CD Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
             )}
-          </div>
+          </button>
         </div>
 
         <div className="field-group photo-lp-wrapper">
           <label>{t("fields.lp_cover")}</label>
-          <div className="photo-box">
+          <button
+            type="button"
+            className="photo-box"
+            onContextMenu={(e) => handleCoverContextMenu(e, "lp")}
+            title={t("cover_paste_hint")}
+          >
             {currentRecord?.lp_cover_path && (
               <img
-                src={getImageSrc(currentRecord.lp_cover_path)}
+                src={getImageSrcWithVersion(currentRecord.lp_cover_path, coverVersion.lp)}
                 alt={`${currentRecord.title || "Album"} - LP Cover`}
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
             )}
-          </div>
+          </button>
         </div>
 
         <div className="action-bar">
@@ -663,6 +764,23 @@ function App() {
               </button>
             </div>
           </dialog>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="context-menu"
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+        >
+          <button onClick={() => pasteFromClipboard(contextMenu.suffix)}>
+            {t("actions.paste")}
+          </button>
+          {(contextMenu.suffix === "cd" ? currentRecord?.cd_cover_path : currentRecord?.lp_cover_path) && (
+            <button onClick={() => copyToClipboard(contextMenu.suffix)}>
+              {t("actions.copy")}
+            </button>
+          )}
         </div>
       )}
     </div>
