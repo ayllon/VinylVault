@@ -510,7 +510,9 @@ body {
 }
 
 .context-menu button {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
     padding: 10px 16px;
     border: none;
@@ -520,6 +522,14 @@ body {
     color: #2d3748;
     font-size: 14px;
     transition: background-color 0.15s;
+}
+
+.menu-item-icon {
+    display: inline-flex;
+    width: 18px;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
 }
 
 .context-menu button:first-child {

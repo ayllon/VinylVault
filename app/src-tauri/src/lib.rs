@@ -402,6 +402,36 @@ fn save_cover_from_rgba_impl(
     Ok(cover_path.to_string_lossy().to_string())
 }
 
+fn delete_cover_for_record_impl(
+    conn: &Connection,
+    cover_storage: &CoverStorage,
+    record_id: i64,
+    suffix: &str,
+) -> Result<(), String> {
+    let col_name = match suffix {
+        "cd" => "cd_cover_path",
+        "lp" => "lp_cover_path",
+        _ => return Err(format!("Invalid suffix: {}", suffix)),
+    };
+
+    let existing_cover_query = format!("SELECT {} FROM albums WHERE rowid=?1", col_name);
+    let existing_cover: Option<String> = conn
+        .query_row(&existing_cover_query, [record_id], |row| row.get(0))
+        .map_err(|e| format!("Failed to fetch existing cover path: {}", e))?;
+
+    if let Some(existing_cover) = existing_cover {
+        if !existing_cover.trim().is_empty() {
+            cover_storage.delete_cover(&existing_cover)?;
+        }
+    }
+
+    let query = format!("UPDATE albums SET {} = NULL WHERE rowid = ?1", col_name);
+    conn.execute(&query, [record_id])
+        .map_err(|e| format!("Failed to update record: {}", e))?;
+
+    Ok(())
+}
+
 // Tauri command handlers (thin wrappers around _impl)
 
 #[tauri::command]
@@ -543,6 +573,16 @@ async fn copy_cover_to_clipboard(app: tauri::AppHandle, cover_path: String) -> R
     })
     .await
     .map_err(|e| format!("Copy task failed: {}", e))?
+}
+
+#[tauri::command]
+fn delete_cover_for_record(
+    record_id: i64,
+    suffix: String,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
+    delete_cover_for_record_impl(&conn, &state.cover_storage, record_id, &suffix)
 }
 
 #[tauri::command]
@@ -691,6 +731,7 @@ pub fn run() {
             save_cover_paste,
             save_cover_paste_from_clipboard,
             copy_cover_to_clipboard,
+            delete_cover_for_record,
             get_covers_dir,
             is_db_empty,
             import_mdb,

@@ -49,9 +49,13 @@
     "confirm_delete": "Confirmar borrado",
     "delete_sure": "¿Estás seguro de que quieres borrar este registro?",
     "paste": "Pegar",
-    "copy": "Copiar"
+    "copy": "Copiar",
+    "copy_file_path": "Copiar ruta del archivo",
+    "delete_cover": "Borrar portada"
   },
 
   "cover_paste_error": "Error al guardar la portada {{type}}",
-  "cover_copy_error": "Error al copiar la portada: {{error}}"
+  "cover_copy_error": "Error al copiar la portada: {{error}}",
+  "cover_path_copy_error": "Error al copiar la ruta de la portada: {{error}}",
+  "cover_delete_error": "Error al borrar la portada {{type}}: {{error}}"
 }

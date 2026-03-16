@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
 import "./App.css";
@@ -320,6 +321,52 @@ function App() {
       console.error("Failed to copy image to clipboard:", error);
       alert(t("cover_copy_error", { type: suffix, error: String(error) }));
     }
+  }
+
+  async function copyCoverFilePath(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    const coverPath = suffix === "cd" ? currentRecord.cd_cover_path : currentRecord.lp_cover_path;
+    if (!coverPath) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      await writeText(coverPath);
+      setContextMenu(null);
+    } catch (error) {
+      console.error("Failed to copy cover file path:", error);
+      alert(t("cover_path_copy_error", { error: String(error) }));
+    }
+  }
+
+  async function deleteCover(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      await invoke("delete_cover_for_record", {
+        recordId: currentRecord.id,
+        suffix,
+      });
+
+      if (suffix === "cd") {
+        setCurrentRecord({ ...currentRecord, cd_cover_path: null });
+      } else {
+        setCurrentRecord({ ...currentRecord, lp_cover_path: null });
+      }
+    } catch (error) {
+      console.error("Failed to delete cover:", error);
+      alert(t("cover_delete_error", { type: suffix, error: String(error) }));
+    }
+
+    setContextMenu(null);
   }
 
   // Silent autosaver function
@@ -752,12 +799,24 @@ function App() {
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
         >
           <button onClick={() => pasteFromClipboard(contextMenu.suffix)}>
+            <span className="menu-item-icon" aria-hidden="true">📥</span>
             {t("actions.paste")}
           </button>
           {(contextMenu.suffix === "cd" ? currentRecord?.cd_cover_path : currentRecord?.lp_cover_path) && (
-            <button onClick={() => copyToClipboard(contextMenu.suffix)}>
-              {t("actions.copy")}
-            </button>
+            <>
+              <button onClick={() => copyToClipboard(contextMenu.suffix)}>
+                <span className="menu-item-icon" aria-hidden="true">🖼️</span>
+                {t("actions.copy")}
+              </button>
+              <button onClick={() => copyCoverFilePath(contextMenu.suffix)}>
+                <span className="menu-item-icon" aria-hidden="true">📂</span>
+                {t("actions.copy_file_path")}
+              </button>
+              <button onClick={() => deleteCover(contextMenu.suffix)}>
+                <span className="menu-item-icon" aria-hidden="true">🗑️</span>
+                {t("actions.delete_cover")}
+              </button>
+            </>
           )}
         </div>
       )}
