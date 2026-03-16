@@ -1,7 +1,7 @@
 use image::{ImageBuffer, ImageFormat, Rgb};
 use std::fs;
-use std::io::ErrorKind;
 use std::io::Cursor;
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 fn short_content_hash(bytes: &[u8]) -> String {
@@ -152,7 +152,10 @@ mod tests {
         let storage = CoverStorage::new(db_path).expect("cover storage init failed");
         let resolved = storage.resolve_cover_path_from_db("covers/ab/album_cd_abcdef.jpg");
 
-        assert_eq!(resolved, Path::new("/tmp/vinyl/covers/ab/album_cd_abcdef.jpg"));
+        assert_eq!(
+            resolved,
+            Path::new("/tmp/vinyl/covers/ab/album_cd_abcdef.jpg")
+        );
     }
 
     #[test]

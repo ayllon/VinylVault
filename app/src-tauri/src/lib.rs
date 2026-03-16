@@ -349,8 +349,8 @@ fn save_cover_from_rgba_impl(
     image_height: u32,
     suffix: &str,
 ) -> Result<String, String> {
-    use image::{DynamicImage, ImageBuffer, Rgba};
     use crate::sanitize::sanitize_key;
+    use image::{DynamicImage, ImageBuffer, Rgba};
 
     let col_name = match suffix {
         "cd" => "cd_cover_path",
@@ -383,11 +383,11 @@ fn save_cover_from_rgba_impl(
 
     let rgba = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(image_width, image_height, image_bytes)
         .ok_or_else(|| {
-            format!(
-                "Invalid RGBA buffer size for dimensions {}x{}",
-                image_width, image_height
-            )
-        })?;
+        format!(
+            "Invalid RGBA buffer size for dimensions {}x{}",
+            image_width, image_height
+        )
+    })?;
     let rgb_img = DynamicImage::ImageRgba8(rgba).to_rgb8();
 
     // Save cover and get the DB-storable relative path.
@@ -587,7 +587,11 @@ fn delete_cover_for_record(
 
 #[tauri::command]
 fn get_covers_dir(state: State<AppState>) -> Result<String, String> {
-    Ok(state.cover_storage.covers_dir().to_string_lossy().to_string())
+    Ok(state
+        .cover_storage
+        .covers_dir()
+        .to_string_lossy()
+        .to_string())
 }
 
 #[tauri::command]
@@ -902,21 +906,16 @@ mod tests {
 
         let (root, cover_storage) = setup_cover_storage_for_test("save-cover");
 
-        let abs_path = save_cover_from_rgba_impl(
-            &conn,
-            &cover_storage,
-            1,
-            vec![255, 0, 0, 255],
-            1,
-            1,
-            "cd",
-        )
-        .expect("save cover failed");
+        let abs_path =
+            save_cover_from_rgba_impl(&conn, &cover_storage, 1, vec![255, 0, 0, 255], 1, 1, "cd")
+                .expect("save cover failed");
 
         let stored_rel: String = conn
-            .query_row("SELECT cd_cover_path FROM albums WHERE rowid=?1", [1], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT cd_cover_path FROM albums WHERE rowid=?1",
+                [1],
+                |row| row.get(0),
+            )
             .expect("failed to query stored cover path");
 
         assert!(stored_rel.starts_with("covers/"));
@@ -968,13 +967,14 @@ mod tests {
             .expect("failed to create cover folder");
         fs::write(&abs_cover, [1u8, 2u8, 3u8]).expect("failed to write fake cover");
 
-        delete_cover_for_record_impl(&conn, &cover_storage, 1, "cd")
-            .expect("delete cover failed");
+        delete_cover_for_record_impl(&conn, &cover_storage, 1, "cd").expect("delete cover failed");
 
         let stored: Option<String> = conn
-            .query_row("SELECT cd_cover_path FROM albums WHERE rowid=?1", [1], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT cd_cover_path FROM albums WHERE rowid=?1",
+                [1],
+                |row| row.get(0),
+            )
             .expect("failed to query stored path after delete");
 
         assert!(stored.is_none());
