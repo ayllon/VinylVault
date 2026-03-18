@@ -183,6 +183,13 @@ body {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
+.photo-box:focus-visible,
+.photo-box:focus {
+    outline: 2px solid #2563eb; /* visible focus ring for keyboard users */
+    outline-offset: 2px;
+    box-shadow: 0 0 0 1px #ffffff, 0 0 0 3px rgba(37, 99, 235, 0.4);
+}
+
 .photo-box img {
     width: 100%;
     height: 100%;
