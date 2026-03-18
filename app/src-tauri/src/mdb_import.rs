@@ -245,6 +245,22 @@ fn is_effectively_empty_value(value: &Value) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn make_unique_tmp_dir(label: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("vinylvault-{label}-{nanos}"));
+        fs::create_dir_all(&dir).expect("failed to create temp directory");
+        dir
+    }
+
+    fn missing_mdb_path(root: &Path) -> std::path::PathBuf {
+        root.join("missing").join("discos.mdb")
+    }
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open(":memory:").expect("failed to open in-memory db");
@@ -298,12 +314,13 @@ mod tests {
         )
         .expect("insert failed");
 
-        let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
+        let root = make_unique_tmp_dir("mdb-import-non-empty");
+        let missing_mdb = missing_mdb_path(&root);
         let mut progress_calls = 0usize;
 
-        let db_path = Path::new("/tmp/discos.sqlite");
-        let cover_storage = CoverStorage::new(db_path).expect("cover storage init failed");
-        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &cover_storage, |_, _| {
+        let db_path = root.join("discos.sqlite");
+        let cover_storage = CoverStorage::new(&db_path).expect("cover storage init failed");
+        let result = import_mdb_impl_with_progress(&missing_mdb, &conn, &cover_storage, |_, _| {
             progress_calls += 1;
         });
 
@@ -311,17 +328,20 @@ mod tests {
         let err = result.expect_err("expected error");
         assert!(err.contains("Database is not empty"));
         assert_eq!(progress_calls, 0);
+
+        fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
 
     #[test]
     fn test_import_mdb_missing_file_returns_open_error_on_empty_db() {
         let conn = setup_test_db();
-        let missing_mdb = Path::new("/this/path/does/not/exist/discos.mdb");
+        let root = make_unique_tmp_dir("mdb-import-missing-file");
+        let missing_mdb = missing_mdb_path(&root);
         let mut progress_calls = 0usize;
 
-        let db_path = Path::new("/tmp/discos.sqlite");
-        let cover_storage = CoverStorage::new(db_path).expect("cover storage init failed");
-        let result = import_mdb_impl_with_progress(missing_mdb, &conn, &cover_storage, |_, _| {
+        let db_path = root.join("discos.sqlite");
+        let cover_storage = CoverStorage::new(&db_path).expect("cover storage init failed");
+        let result = import_mdb_impl_with_progress(&missing_mdb, &conn, &cover_storage, |_, _| {
             progress_calls += 1;
         });
 
@@ -329,5 +349,7 @@ mod tests {
         let err = result.expect_err("expected error");
         assert!(err.contains("Failed to open MDB"));
         assert_eq!(progress_calls, 0);
+
+        fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
 }

@@ -270,7 +270,7 @@ function App() {
     }
   }
 
-  async function handleCoverContextMenu(
+  function handleCoverContextMenu(
     e: React.MouseEvent<HTMLButtonElement>,
     suffix: "cd" | "lp"
   ) {

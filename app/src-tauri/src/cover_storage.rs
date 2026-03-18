@@ -86,12 +86,11 @@ impl CoverStorage {
 
     /// Delete a cover image referenced by a DB path. Returns true if a file was deleted.
     pub fn delete_cover(&self, stored_path: &str) -> Result<bool, String> {
-        let path = Path::new(stored_path);
+        let path = self.resolve_cover_path_from_db(stored_path);
 
-        if !path.is_absolute()
-            && path
-                .components()
-                .any(|component| matches!(component, Component::ParentDir))
+        if path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
         {
             return Err(format!(
                 "Invalid cover path '{}': parent directory segments are not allowed",
@@ -136,44 +135,57 @@ mod tests {
 
     #[test]
     fn test_path_relative_to_db() {
-        let db_path = Path::new("/tmp/vinyl/discos.sqlite");
-        let cover_path = Path::new("/tmp/vinyl/covers/ab/album_cd_abcdef.jpg");
-        let storage = CoverStorage::new(db_path).expect("cover storage init failed");
+        let root = make_unique_tmp_dir("path-relative");
+        let db_path = root.join("discos.sqlite");
+        let cover_path = root.join("covers").join("ab").join("album_cd_abcdef.jpg");
+        let storage = CoverStorage::new(&db_path).expect("cover storage init failed");
 
         let rel = storage
-            .path_relative_to_db(cover_path)
+            .path_relative_to_db(&cover_path)
             .expect("relative conversion failed");
         assert_eq!(rel, Path::new("covers/ab/album_cd_abcdef.jpg"));
+
+        fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
 
     #[test]
     fn test_resolve_cover_path_from_db_handles_relative() {
-        let db_path = Path::new("/tmp/vinyl/discos.sqlite");
-        let storage = CoverStorage::new(db_path).expect("cover storage init failed");
+        let root = make_unique_tmp_dir("resolve-relative");
+        let db_path = root.join("discos.sqlite");
+        let storage = CoverStorage::new(&db_path).expect("cover storage init failed");
         let resolved = storage.resolve_cover_path_from_db("covers/ab/album_cd_abcdef.jpg");
 
-        assert_eq!(
-            resolved,
-            Path::new("/tmp/vinyl/covers/ab/album_cd_abcdef.jpg")
-        );
+        assert_eq!(resolved, root.join("covers/ab/album_cd_abcdef.jpg"));
+
+        fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
 
     #[test]
     fn test_resolve_cover_path_from_db_keeps_absolute() {
-        let db_path = Path::new("/tmp/vinyl/discos.sqlite");
-        let storage = CoverStorage::new(db_path).expect("cover storage init failed");
-        let absolute = "/var/data/covers/ab/album_cd_abcdef.jpg";
-        let resolved = storage.resolve_cover_path_from_db(absolute);
+        let root = make_unique_tmp_dir("resolve-absolute");
+        let db_path = root.join("discos.sqlite");
+        let storage = CoverStorage::new(&db_path).expect("cover storage init failed");
+        let absolute = std::env::temp_dir()
+            .join("vinylvault-absolute")
+            .join("covers")
+            .join("ab")
+            .join("album_cd_abcdef.jpg");
+        let resolved = storage.resolve_cover_path_from_db(&absolute.to_string_lossy());
 
-        assert_eq!(resolved, Path::new(absolute));
+        assert_eq!(resolved, absolute);
+
+        fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
 
     #[test]
     fn test_covers_dir() {
-        let db_path = Path::new("/tmp/vinyl/discos.sqlite");
-        let storage = CoverStorage::new(db_path).expect("cover storage init failed");
+        let root = make_unique_tmp_dir("covers-dir");
+        let db_path = root.join("discos.sqlite");
+        let storage = CoverStorage::new(&db_path).expect("cover storage init failed");
 
-        assert_eq!(storage.covers_dir(), Path::new("/tmp/vinyl/covers"));
+        assert_eq!(storage.covers_dir(), root.join("covers"));
+
+        fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
 
     #[test]
@@ -213,14 +225,17 @@ mod tests {
 
     #[test]
     fn test_delete_cover_rejects_parent_dir_segments() {
-        let db_path = Path::new("/tmp/vinyl/discos.sqlite");
-        let storage = CoverStorage::new(db_path).expect("cover storage init failed");
+        let root = make_unique_tmp_dir("delete-cover-parent-dir");
+        let db_path = root.join("discos.sqlite");
+        let storage = CoverStorage::new(&db_path).expect("cover storage init failed");
 
         let err = storage
             .delete_cover("covers/../outside.jpg")
             .expect_err("expected traversal path to fail");
 
         assert!(err.contains("parent directory segments"));
+
+        fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
 
     #[test]
