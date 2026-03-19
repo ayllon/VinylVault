@@ -1,3 +1,4 @@
+mod cover_storage;
 mod mdb_import;
 mod sanitize;
 
@@ -9,6 +10,9 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
+use tauri_plugin_clipboard_manager::ClipboardExt;
+
+use crate::cover_storage::CoverStorage;
 
 const DB_SCHEMA_VERSION: &str = "1";
 const META_KEY_SCHEMA_VERSION: &str = "schema_version";
@@ -18,6 +22,7 @@ const DEBUG_IMPORT_TEMP_DIR: &str = "vinylvault-mdb-import-debug";
 #[derive(Clone)]
 struct AppState {
     db_pool: Pool<SqliteConnectionManager>,
+    cover_storage: CoverStorage,
 }
 
 #[derive(Serialize, Clone)]
@@ -335,6 +340,98 @@ fn delete_record_impl(conn: &Connection, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+fn save_cover_from_rgba_impl(
+    conn: &Connection,
+    cover_storage: &CoverStorage,
+    record_id: i64,
+    image_bytes: Vec<u8>,
+    image_width: u32,
+    image_height: u32,
+    suffix: &str,
+) -> Result<String, String> {
+    use crate::sanitize::sanitize_key;
+    use image::{DynamicImage, ImageBuffer, Rgba};
+
+    let col_name = match suffix {
+        "cd" => "cd_cover_path",
+        "lp" => "lp_cover_path",
+        _ => return Err(format!("Invalid suffix: {}", suffix)),
+    };
+
+    // Fetch the record to get the title
+    let title: Option<String> = conn
+        .query_row(
+            "SELECT title FROM albums WHERE rowid=?1",
+            [record_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to fetch record: {}", e))?;
+
+    let title = title.ok_or("Record has no title; cannot save cover")?;
+    let key = sanitize_key(&title);
+
+    let existing_cover_query = format!("SELECT {} FROM albums WHERE rowid=?1", col_name);
+    let existing_cover: Option<String> = conn
+        .query_row(&existing_cover_query, [record_id], |row| row.get(0))
+        .map_err(|e| format!("Failed to fetch existing cover path: {}", e))?;
+
+    if let Some(existing_cover) = existing_cover {
+        if !existing_cover.trim().is_empty() {
+            cover_storage.delete_cover(&existing_cover)?;
+        }
+    }
+
+    let rgba = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(image_width, image_height, image_bytes)
+        .ok_or_else(|| {
+        format!(
+            "Invalid RGBA buffer size for dimensions {}x{}",
+            image_width, image_height
+        )
+    })?;
+    let rgb_img = DynamicImage::ImageRgba8(rgba).to_rgb8();
+
+    // Save cover and get the DB-storable relative path.
+    let rel_path = cover_storage.save_cover_image(&rgb_img, &key, suffix)?;
+    let rel_path_str = rel_path.to_string_lossy().to_string();
+
+    let query = format!("UPDATE albums SET {} = ?1 WHERE rowid = ?2", col_name);
+    conn.execute(&query, rusqlite::params![rel_path_str.clone(), record_id])
+        .map_err(|e| format!("Failed to update record: {}", e))?;
+
+    let cover_path = cover_storage.resolve_cover_path_from_db(&rel_path_str);
+    Ok(cover_path.to_string_lossy().to_string())
+}
+
+fn delete_cover_for_record_impl(
+    conn: &Connection,
+    cover_storage: &CoverStorage,
+    record_id: i64,
+    suffix: &str,
+) -> Result<(), String> {
+    let col_name = match suffix {
+        "cd" => "cd_cover_path",
+        "lp" => "lp_cover_path",
+        _ => return Err(format!("Invalid suffix: {}", suffix)),
+    };
+
+    let existing_cover_query = format!("SELECT {} FROM albums WHERE rowid=?1", col_name);
+    let existing_cover: Option<String> = conn
+        .query_row(&existing_cover_query, [record_id], |row| row.get(0))
+        .map_err(|e| format!("Failed to fetch existing cover path: {}", e))?;
+
+    if let Some(existing_cover) = existing_cover {
+        if !existing_cover.trim().is_empty() {
+            cover_storage.delete_cover(&existing_cover)?;
+        }
+    }
+
+    let query = format!("UPDATE albums SET {} = NULL WHERE rowid = ?1", col_name);
+    conn.execute(&query, [record_id])
+        .map_err(|e| format!("Failed to update record: {}", e))?;
+
+    Ok(())
+}
+
 // Tauri command handlers (thin wrappers around _impl)
 
 #[tauri::command]
@@ -346,7 +443,24 @@ fn get_total_records(state: State<AppState>) -> Result<u32, String> {
 #[tauri::command]
 fn get_record(offset: u32, state: State<AppState>) -> Result<Record, String> {
     let conn = state.db_pool.get().map_err(|e| e.to_string())?;
-    get_record_impl(&conn, offset)
+    let mut record = get_record_impl(&conn, offset)?;
+
+    record.cd_cover_path = record.cd_cover_path.as_deref().map(|p| {
+        state
+            .cover_storage
+            .resolve_cover_path_from_db(p)
+            .to_string_lossy()
+            .to_string()
+    });
+    record.lp_cover_path = record.lp_cover_path.as_deref().map(|p| {
+        state
+            .cover_storage
+            .resolve_cover_path_from_db(p)
+            .to_string_lossy()
+            .to_string()
+    });
+
+    Ok(record)
 }
 
 #[tauri::command]
@@ -384,13 +498,100 @@ fn delete_record(id: i64, state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_covers_dir() -> Result<String, String> {
-    let db_path = resolve_db_path()?;
-    let covers_dir = db_path
-        .parent()
-        .ok_or("Invalid database path")?
-        .join("covers");
-    Ok(covers_dir.to_string_lossy().to_string())
+fn save_cover_paste(
+    record_id: i64,
+    image_bytes: Vec<u8>,
+    image_width: u32,
+    image_height: u32,
+    suffix: String,
+    state: State<AppState>,
+) -> Result<String, String> {
+    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
+    save_cover_from_rgba_impl(
+        &conn,
+        &state.cover_storage,
+        record_id,
+        image_bytes,
+        image_width,
+        image_height,
+        &suffix,
+    )
+}
+
+#[tauri::command]
+async fn save_cover_paste_from_clipboard(
+    record_id: i64,
+    suffix: String,
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    let pool = state.db_pool.clone();
+    let cover_storage = state.cover_storage.clone();
+    let app_handle = app.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        // Clipboard read is intentionally done off the main thread to avoid Linux deadlocks.
+        let clipboard_image = app_handle
+            .clipboard()
+            .read_image()
+            .map_err(|e| format!("Failed to read image from clipboard: {}", e))?
+            .to_owned();
+
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        save_cover_from_rgba_impl(
+            &conn,
+            &cover_storage,
+            record_id,
+            clipboard_image.rgba().to_vec(),
+            clipboard_image.width(),
+            clipboard_image.height(),
+            &suffix,
+        )
+    })
+    .await
+    .map_err(|e| format!("Paste task failed: {}", e))?
+}
+
+#[tauri::command]
+async fn copy_cover_to_clipboard(app: tauri::AppHandle, cover_path: String) -> Result<(), String> {
+    use tauri::image::Image;
+
+    let app_handle = app.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = Path::new(&cover_path);
+        let dyn_img = image::open(path)
+            .map_err(|e| format!("Failed to open image '{}': {}", cover_path, e))?;
+        let rgba = dyn_img.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        let img = Image::new_owned(rgba.into_raw(), width, height);
+        app_handle
+            .clipboard()
+            .write_image(&img)
+            .map_err(|e| format!("Failed to write image to clipboard: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Copy task failed: {}", e))?
+}
+
+#[tauri::command]
+fn delete_cover_for_record(
+    record_id: i64,
+    suffix: String,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
+    delete_cover_for_record_impl(&conn, &state.cover_storage, record_id, &suffix)
+}
+
+#[tauri::command]
+fn get_covers_dir(state: State<AppState>) -> Result<String, String> {
+    Ok(state
+        .cover_storage
+        .covers_dir()
+        .to_string_lossy()
+        .to_string())
 }
 
 #[tauri::command]
@@ -405,11 +606,8 @@ async fn import_mdb(
     state: State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<usize, String> {
-    let db_path = resolve_db_path()?;
-    let covers_dir = db_path.parent().ok_or("Invalid database path")?;
-    let covers_path = covers_dir.join("covers");
-
     let pool = state.db_pool.clone();
+    let cover_storage = state.cover_storage.clone();
     let app_handle = app.clone();
     let mdb_path_buf = PathBuf::from(mdb_path);
 
@@ -419,7 +617,7 @@ async fn import_mdb(
         let imported_count = mdb_import::import_mdb_impl_with_progress(
             &mdb_path_buf,
             &conn,
-            &covers_path,
+            &cover_storage,
             |processed, total| {
                 let percent = if total == 0 {
                     0.0
@@ -478,7 +676,7 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
     })?;
 
     let db_path = tmp_root.join("debug.sqlite");
-    let covers_path = tmp_root.join("covers");
+    let cover_storage = CoverStorage::new(&db_path)?;
 
     init_db_if_needed(&db_path)?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
@@ -489,7 +687,7 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
     let imported = mdb_import::import_mdb_impl_with_progress(
         mdb_path,
         &conn,
-        &covers_path,
+        &cover_storage,
         |processed, total| {
             if processed == 0 || processed % 250 == 0 || processed == total {
                 log::info!("import progress: {processed}/{total}");
@@ -511,16 +709,21 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
 pub fn run() {
     let db_path = resolve_db_path().expect("Failed to resolve database path");
     init_db_if_needed(&db_path).expect("Failed to initialize database");
+    let cover_storage = CoverStorage::new(&db_path).expect("Failed to initialize cover storage");
 
     let manager = SqliteConnectionManager::file(&db_path);
     let pool = Pool::new(manager).expect("Failed to create connection pool");
 
-    let app_state = AppState { db_pool: pool };
+    let app_state = AppState {
+        db_pool: pool,
+        cover_storage,
+    };
 
     tauri::Builder::default()
         .manage(app_state)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             get_total_records,
             get_record,
@@ -529,6 +732,10 @@ pub fn run() {
             add_record,
             update_record,
             delete_record,
+            save_cover_paste,
+            save_cover_paste_from_clipboard,
+            copy_cover_to_clipboard,
+            delete_cover_for_record,
             get_covers_dir,
             is_db_empty,
             import_mdb,
@@ -550,6 +757,26 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn make_unique_tmp_dir(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("vinylvault-lib-{label}-{nanos}"));
+        fs::create_dir_all(&dir).expect("failed to create temp directory");
+        dir
+    }
+
+    fn setup_cover_storage_for_test(label: &str) -> (PathBuf, CoverStorage) {
+        let root = make_unique_tmp_dir(label);
+        let db_path = root.join("discos.sqlite");
+        let storage = CoverStorage::new(&db_path).expect("cover storage init failed");
+        (root, storage)
+    }
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open(":memory:").expect("Failed to create in-memory DB");
@@ -666,5 +893,112 @@ mod tests {
         assert_eq!(result.groups[0], "Nuevo Grupo");
         assert_eq!(result.titles.len(), 1);
         assert_eq!(result.titles[0], "Nuevo Disco");
+    }
+
+    #[test]
+    fn test_save_cover_from_rgba_updates_db_and_returns_absolute_path() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["The Artist", "Test Album"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("save-cover");
+
+        let abs_path =
+            save_cover_from_rgba_impl(&conn, &cover_storage, 1, vec![255, 0, 0, 255], 1, 1, "cd")
+                .expect("save cover failed");
+
+        let stored_rel: String = conn
+            .query_row(
+                "SELECT cd_cover_path FROM albums WHERE rowid=?1",
+                [1],
+                |row| row.get(0),
+            )
+            .expect("failed to query stored cover path");
+
+        assert!(stored_rel.starts_with("covers/"));
+        assert!(Path::new(&abs_path).is_absolute());
+        assert!(Path::new(&abs_path).exists());
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
+    }
+
+    #[test]
+    fn test_save_cover_from_rgba_rejects_invalid_suffix() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["The Artist", "Test Album"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("invalid-save-suffix");
+
+        let err = save_cover_from_rgba_impl(
+            &conn,
+            &cover_storage,
+            1,
+            vec![255, 0, 0, 255],
+            1,
+            1,
+            "cassette",
+        )
+        .expect_err("expected invalid suffix to fail");
+
+        assert!(err.contains("Invalid suffix"));
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
+    }
+
+    #[test]
+    fn test_delete_cover_for_record_deletes_file_and_clears_column() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title, cd_cover_path) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["The Artist", "Test Album", "covers/te/test_cd_deadbe.jpg"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("delete-cover");
+        let abs_cover = root.join("covers/te/test_cd_deadbe.jpg");
+        fs::create_dir_all(abs_cover.parent().expect("parent missing"))
+            .expect("failed to create cover folder");
+        fs::write(&abs_cover, [1u8, 2u8, 3u8]).expect("failed to write fake cover");
+
+        delete_cover_for_record_impl(&conn, &cover_storage, 1, "cd").expect("delete cover failed");
+
+        let stored: Option<String> = conn
+            .query_row(
+                "SELECT cd_cover_path FROM albums WHERE rowid=?1",
+                [1],
+                |row| row.get(0),
+            )
+            .expect("failed to query stored path after delete");
+
+        assert!(stored.is_none());
+        assert!(!abs_cover.exists());
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
+    }
+
+    #[test]
+    fn test_delete_cover_for_record_rejects_invalid_suffix() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
+            rusqlite::params!["The Artist", "Test Album"],
+        )
+        .expect("insert failed");
+
+        let (root, cover_storage) = setup_cover_storage_for_test("invalid-delete-suffix");
+
+        let err = delete_cover_for_record_impl(&conn, &cover_storage, 1, "tape")
+            .expect_err("expected invalid suffix to fail");
+
+        assert!(err.contains("Invalid suffix"));
+
+        fs::remove_dir_all(&root).expect("failed to clean temp directory");
     }
 }

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
 import "./App.css";
@@ -85,8 +86,10 @@ function App() {
   const [groups, setGroups] = useState<string[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
   const [formats, setFormats] = useState<string[]>([]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; suffix: "cd" | "lp" } | null>(null);
 
   const loadSeqRef = useRef(0);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [searchArtist, setSearchArtist] = useState<string>("");
   const [searchAlbum, setSearchAlbum] = useState<string>("");
@@ -181,6 +184,36 @@ function App() {
     };
   }, [deleteTargetId]);
 
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (contextMenuRef.current && target && !contextMenuRef.current.contains(target)) {
+        setContextMenu(null);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextMenu(null);
+      }
+    };
+
+    globalThis.addEventListener("mousedown", handleOutsideClick);
+    globalThis.addEventListener("keydown", handleKeyDown);
+
+    const menuElement = contextMenuRef.current;
+    if (menuElement instanceof HTMLElement) {
+      menuElement.focus();
+    }
+
+    return () => {
+      globalThis.removeEventListener("mousedown", handleOutsideClick);
+      globalThis.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenu]);
+
   async function handleImport() {
     try {
       const selected = await open({
@@ -249,6 +282,105 @@ function App() {
     } catch {
       alert("No se encontro el registro.");
     }
+  }
+
+  function handleCoverContextMenu(
+    e: React.MouseEvent<HTMLButtonElement>,
+    suffix: "cd" | "lp"
+  ) {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, suffix });
+  }
+
+  async function pasteFromClipboard(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      const newPath = await invoke<string>("save_cover_paste_from_clipboard", {
+        recordId: currentRecord.id,
+        suffix,
+      });
+
+      if (suffix === "cd") {
+        setCurrentRecord({ ...currentRecord, cd_cover_path: newPath });
+      } else {
+        setCurrentRecord({ ...currentRecord, lp_cover_path: newPath });
+      }
+    } catch (error) {
+      console.error("Failed to read clipboard:", error);
+      alert(t("cover_paste_error", { type: suffix }));
+    }
+    setContextMenu(null);
+  }
+
+  async function copyToClipboard(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    const coverPath = suffix === "cd" ? currentRecord.cd_cover_path : currentRecord.lp_cover_path;
+    if (!coverPath) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      await invoke("copy_cover_to_clipboard", { coverPath });
+      setContextMenu(null);
+    } catch (error) {
+      console.error("Failed to copy image to clipboard:", error);
+      alert(t("cover_copy_error", { type: suffix, error: String(error) }));
+    }
+  }
+
+  async function copyCoverFilePath(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    const coverPath = suffix === "cd" ? currentRecord.cd_cover_path : currentRecord.lp_cover_path;
+    if (!coverPath) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      await writeText(coverPath);
+      setContextMenu(null);
+    } catch (error) {
+      console.error("Failed to copy cover file path:", error);
+      alert(t("cover_path_copy_error", { error: String(error) }));
+    }
+  }
+
+  async function deleteCover(suffix: "cd" | "lp") {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    try {
+      await invoke("delete_cover_for_record", {
+        recordId: currentRecord.id,
+        suffix,
+      });
+
+      if (suffix === "cd") {
+        setCurrentRecord({ ...currentRecord, cd_cover_path: null });
+      } else {
+        setCurrentRecord({ ...currentRecord, lp_cover_path: null });
+      }
+    } catch (error) {
+      console.error("Failed to delete cover:", error);
+      alert(t("cover_delete_error", { type: suffix, error: String(error) }));
+    }
+
+    setContextMenu(null);
   }
 
   // Silent autosaver function
@@ -498,8 +630,13 @@ function App() {
         </div>
 
         <div className="field-group photo-cd-wrapper">
-          <label>{t("fields.cd_cover")}</label>
-          <div className="photo-box">
+          <label htmlFor="cd-cover-button">{t("fields.cd_cover")}</label>
+          <button
+            type="button"
+            className="photo-box"
+            id="cd-cover-button"
+            onContextMenu={(e) => handleCoverContextMenu(e, "cd")}
+          >
             {currentRecord?.cd_cover_path && (
               <img
                 src={getImageSrc(currentRecord.cd_cover_path)}
@@ -508,12 +645,17 @@ function App() {
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
             )}
-          </div>
+          </button>
         </div>
 
         <div className="field-group photo-lp-wrapper">
-          <label>{t("fields.lp_cover")}</label>
-          <div className="photo-box">
+          <label htmlFor="lp-cover-button">{t("fields.lp_cover")}</label>
+          <button
+            type="button"
+            className="photo-box"
+            id="lp-cover-button"
+            onContextMenu={(e) => handleCoverContextMenu(e, "lp")}
+          >
             {currentRecord?.lp_cover_path && (
               <img
                 src={getImageSrc(currentRecord.lp_cover_path)}
@@ -522,7 +664,7 @@ function App() {
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
             )}
-          </div>
+          </button>
         </div>
 
         <div className="action-bar">
@@ -663,6 +805,35 @@ function App() {
               </button>
             </div>
           </dialog>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="context-menu"
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+        >
+          <button onClick={() => pasteFromClipboard(contextMenu.suffix)}>
+            <span className="menu-item-icon" aria-hidden="true">📥</span>
+            {t("actions.paste")}
+          </button>
+          {(contextMenu.suffix === "cd" ? currentRecord?.cd_cover_path : currentRecord?.lp_cover_path) && (
+            <>
+              <button onClick={() => copyToClipboard(contextMenu.suffix)}>
+                <span className="menu-item-icon" aria-hidden="true">🖼️</span>
+                {t("actions.copy")}
+              </button>
+              <button onClick={() => copyCoverFilePath(contextMenu.suffix)}>
+                <span className="menu-item-icon" aria-hidden="true">📂</span>
+                {t("actions.copy_file_path")}
+              </button>
+              <button onClick={() => deleteCover(contextMenu.suffix)}>
+                <span className="menu-item-icon" aria-hidden="true">🗑️</span>
+                {t("actions.delete_cover")}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

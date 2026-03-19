@@ -9,6 +9,7 @@
     "core:default",
     "dialog:default",
     "fs:default",
+    "clipboard-manager:allow-write-text",
     {
       "identifier": "fs:allow-read",
       "allow": [
