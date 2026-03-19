@@ -194,9 +194,23 @@ function App() {
       }
     };
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextMenu(null);
+      }
+    };
+
     globalThis.addEventListener("mousedown", handleOutsideClick);
+    globalThis.addEventListener("keydown", handleKeyDown);
+
+    const menuElement = contextMenuRef.current;
+    if (menuElement instanceof HTMLElement) {
+      menuElement.focus();
+    }
+
     return () => {
       globalThis.removeEventListener("mousedown", handleOutsideClick);
+      globalThis.removeEventListener("keydown", handleKeyDown);
     };
   }, [contextMenu]);
 
@@ -616,10 +630,11 @@ function App() {
         </div>
 
         <div className="field-group photo-cd-wrapper">
-          <label>{t("fields.cd_cover")}</label>
+          <label htmlFor="cd-cover-button">{t("fields.cd_cover")}</label>
           <button
             type="button"
             className="photo-box"
+            id="cd-cover-button"
             onContextMenu={(e) => handleCoverContextMenu(e, "cd")}
           >
             {currentRecord?.cd_cover_path && (
@@ -634,10 +649,11 @@ function App() {
         </div>
 
         <div className="field-group photo-lp-wrapper">
-          <label>{t("fields.lp_cover")}</label>
+          <label htmlFor="lp-cover-button">{t("fields.lp_cover")}</label>
           <button
             type="button"
             className="photo-box"
+            id="lp-cover-button"
             onContextMenu={(e) => handleCoverContextMenu(e, "lp")}
           >
             {currentRecord?.lp_cover_path && (
