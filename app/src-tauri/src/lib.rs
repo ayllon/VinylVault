@@ -394,13 +394,12 @@ fn save_cover_from_rgba_impl(
 
     // Save cover and get the DB-storable relative path.
     let rel_path = cover_storage.save_cover_image(&rgb_img, &key, suffix)?;
-    let rel_path_str = rel_path.to_string_lossy().to_string();
 
     let query = format!("UPDATE albums SET {} = ?1 WHERE rowid = ?2", col_name);
-    conn.execute(&query, rusqlite::params![rel_path_str.clone(), record_id])
+    conn.execute(&query, rusqlite::params![rel_path.clone(), record_id])
         .map_err(|e| format!("Failed to update record: {}", e))?;
 
-    let cover_path = cover_storage.resolve_cover_path_from_db(&rel_path_str);
+    let cover_path = cover_storage.resolve_cover_path_from_db(&rel_path);
     Ok(cover_path.to_string_lossy().to_string())
 }
 
