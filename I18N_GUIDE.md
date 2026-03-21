@@ -77,16 +77,26 @@ const { t } = useTranslation();
 The translation files are organized into logical sections:
 
 ```
-- app_title         // Main app title
-- loading           // Loading states
-- empty_db          // Empty database messages
-- import_*          // Import-related messages
-- record_not_found  // Error messages
-- fields.*          // Form field labels
-  - group, country, album, year, style, format, etc.
-- search.*          // Search UI labels
-- record.*          // Record navigation labels
-- actions.*         // Action buttons and dialogs
+- app_title                   // Main app title
+- loading                     // Loading states
+- empty_db                    // Empty database messages
+- import_*                    // Import-related messages
+- record_not_found            // Error messages
+- fields.*                    // Form field labels
+  - group, country, album, year, style, format, edition, observations, songs, credits, cd_cover, lp_cover
+- search.*                    // Search UI labels
+- record.*                    // Record navigation labels
+- actions.*                   // Action buttons and dialogs
+- cover_paste_error           // Cover paste/clipboard error
+- cover_copy_error            // Cover copy-to-clipboard error
+- cover_path_copy_error       // Cover file path copy error
+- cover_delete_error          // Cover deletion error
+- cover_lookup.*              // Online cover search dialog
+  - title, subtitle, searching, importing, no_results, accept, discard,
+    open_source, search_with_google, search_with_google_hint,
+    open_source_error, preview_alt, search_error, import_error
+- updates.*                   // Update-available indicator
+  - tooltip, aria_label, title
 ```
 
 ## Language Selector

@@ -1,10 +1,10 @@
 # Versioning Strategy
 
-VinylVault uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
+VinylVault uses **Calendar Versioning**: `YEAR.MONTH.PATCH`.
 
 ## Version Format
 
-- **Version**: `MAJOR.MINOR.PATCH` (e.g., `0.1.0`)
+- **Version**: `YEAR.MONTH.PATCH` (e.g., `2026.3.0`)
 - Stored in two places that must always be in sync:
   - `app/src-tauri/Cargo.toml`
   - `app/src-tauri/tauri.conf.json`
