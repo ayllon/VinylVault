@@ -186,7 +186,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts
-          $msi = Get-ChildItem -Path app\src-tauri\target\release\bundle\msi -Filter *.msi -Recurse | Sort-Object LastWriteTime | Select-Object -Last 1
+          $msi = Get-ChildItem -Path app\src-tauri\target\release\bundle\nsis -Filter *.exe -Recurse | Sort-Object LastWriteTime | Select-Object -Last 1
           if ($msi) { Copy-Item -Path $msi.FullName -Destination artifacts\ }
           Get-ChildItem -Path artifacts
 

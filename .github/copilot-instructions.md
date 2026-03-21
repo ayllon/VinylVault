@@ -23,7 +23,7 @@ npm install               # install JS deps
 npm run dev               # Vite dev server only (http://localhost:5173)
 npm run tauri -- dev      # full Tauri dev window (starts Vite automatically)
 npm run build             # tsc -b && vite build (frontend only)
-npm run tauri -- build    # full native bundle (deb/msi)
+npm run tauri -- build    # full native bundle (rpm/exe)
 npm run lint              # ESLint flat config
 ```
 

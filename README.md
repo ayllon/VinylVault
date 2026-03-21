@@ -10,7 +10,7 @@ This project is a modern rewrite of a Microsoft Access application I built for m
 
 Releases are published on GitHub from version tags (`v*`) and include:
 - Linux `.rpm`
-- Windows `.msi`
+- Windows `.exe`
 
 Project releases page:
 - https://github.com/ayllon/VinylVault/releases

@@ -36,7 +36,7 @@ The `release.yml` workflow fires automatically when a `v*` tag is pushed:
    - The tag matches the version in `Cargo.toml`.
    - `Cargo.toml` and `tauri.conf.json` versions are identical.
    - ESLint, TypeScript type-check, and Rust tests all pass.
-2. **Build** — compiles the app for Linux (`.rpm`) and Windows (`.msi`).
+2. **Build** — compiles the app for Linux (`.rpm`) and Windows (`.exe`).
 3. **Publish** — creates a GitHub Release for the tag and attaches the installers.
 
 ### Major / minor version bumps

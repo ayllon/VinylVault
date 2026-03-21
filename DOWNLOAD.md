@@ -7,7 +7,7 @@ VinylVault is distributed through GitHub Releases.
 - Releases are created from version tags (`v*`), not from a `nightly` tag.
 - Current installers are:
   - Linux: `.rpm`
-  - Windows: `.msi`
+  - Windows: `.exe`
 
 ## Download
 
@@ -28,7 +28,7 @@ sudo rpm -i <downloaded-file>.rpm
 
 **Windows:**
 
-Run the downloaded `.msi` installer and follow the setup wizard.
+Run the downloaded installer and follow the setup wizard.
 
 ## Notes
 
@@ -44,7 +44,4 @@ sudo rpm -e vinylvault
 
 **Windows:**
 
-Use "Add or Remove Programs" in Windows Settings, or:
-```powershell
-msiexec /x VinylVault.msi
-```
+Use "Add or Remove Programs" in Windows Settings.
