@@ -1,8 +1,9 @@
 use reqwest::header::{ACCEPT, USER_AGENT};
-use serde::{Deserialize, Serialize};
 use semver::Version;
+use serde::{Deserialize, Serialize};
 
-const GITHUB_RELEASES_LATEST_API_URL: &str = "https://api.github.com/repos/ayllon/VinylVault/releases/latest";
+const GITHUB_RELEASES_LATEST_API_URL: &str =
+    "https://api.github.com/repos/ayllon/VinylVault/releases/latest";
 const GITHUB_API_ACCEPT: &str = "application/vnd.github+json";
 const GITHUB_USER_AGENT: &str = "VinylVault-UpdateCheck";
 
@@ -51,8 +52,12 @@ fn build_update_info(
     release: GitHubRelease,
 ) -> Result<Option<InternalUpdateInfo>, String> {
     let latest_version = normalize_release_version(&release.tag_name);
-    let latest = Version::parse(latest_version)
-        .map_err(|e| format!("Invalid GitHub release version '{}': {}", release.tag_name, e))?;
+    let latest = Version::parse(latest_version).map_err(|e| {
+        format!(
+            "Invalid GitHub release version '{}': {}",
+            release.tag_name, e
+        )
+    })?;
 
     if latest > *current_version {
         Ok(Some(InternalUpdateInfo {
@@ -107,8 +112,14 @@ mod tests {
             .expect("build update info should succeed")
             .expect("an update should be available");
 
-        assert_eq!(info.current_version, Version::parse("0.1.3").expect("version should parse"));
-        assert_eq!(info.latest_version, Version::parse("0.1.4").expect("version should parse"));
+        assert_eq!(
+            info.current_version,
+            Version::parse("0.1.3").expect("version should parse")
+        );
+        assert_eq!(
+            info.latest_version,
+            Version::parse("0.1.4").expect("version should parse")
+        );
     }
 
     #[test]
@@ -120,8 +131,7 @@ mod tests {
         };
         let current = Version::parse("0.1.3").expect("current version should parse");
 
-        let info = build_update_info(&current, release)
-            .expect("build update info should succeed");
+        let info = build_update_info(&current, release).expect("build update info should succeed");
 
         assert!(info.is_none());
     }
