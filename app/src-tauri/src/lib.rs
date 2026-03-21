@@ -1,5 +1,5 @@
-mod cover_storage;
 mod cover_lookup;
+mod cover_storage;
 mod mdb_import;
 mod sanitize;
 mod update_checker;

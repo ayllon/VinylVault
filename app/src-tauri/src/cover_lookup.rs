@@ -104,7 +104,9 @@ struct CoverArtUrls {
     thumbnail_url: String,
 }
 
-pub async fn search_cover_candidates(query: &CoverSearchQuery) -> Result<Vec<CoverCandidate>, String> {
+pub async fn search_cover_candidates(
+    query: &CoverSearchQuery,
+) -> Result<Vec<CoverCandidate>, String> {
     let title = normalize_title_value(query.title.as_deref());
     let artist = normalize_search_value(query.artist.as_deref());
 
@@ -118,7 +120,11 @@ pub async fn search_cover_candidates(query: &CoverSearchQuery) -> Result<Vec<Cov
     let search_response = client
         .get(MUSICBRAINZ_SEARCH_URL)
         .header(ACCEPT, MUSICBRAINZ_ACCEPT)
-        .query(&[("fmt", "json"), ("limit", "8"), ("query", lucene_query.as_str())])
+        .query(&[
+            ("fmt", "json"),
+            ("limit", "8"),
+            ("query", lucene_query.as_str()),
+        ])
         .send()
         .await
         .map_err(|e| format!("Failed to search MusicBrainz: {}", e))?
@@ -138,7 +144,11 @@ pub async fn search_cover_candidates(query: &CoverSearchQuery) -> Result<Vec<Cov
             .enumerate()
             .map(|(index, release)| {
                 let client = client.clone();
-                async move { build_candidate(&client, release).await.map(|candidate| (index, candidate)) }
+                async move {
+                    build_candidate(&client, release)
+                        .await
+                        .map(|candidate| (index, candidate))
+                }
             }),
     )
     .buffer_unordered(CANDIDATE_LOOKUP_CONCURRENCY)
@@ -188,7 +198,10 @@ async fn build_candidate(
     let cover_art = fetch_cover_art(
         client,
         &release.id,
-        release.release_group.as_ref().map(|group| group.id.as_str()),
+        release
+            .release_group
+            .as_ref()
+            .map(|group| group.id.as_str()),
     )
     .await?;
     let Some(cover_art) = cover_art else {
@@ -231,7 +244,10 @@ async fn fetch_cover_art(
     if let Some(release_group_id) = release_group_id {
         if let Some(image) = fetch_cover_art_from_endpoint(
             client,
-            &format!("{}/{}/", COVER_ART_ARCHIVE_RELEASE_GROUP_URL, release_group_id),
+            &format!(
+                "{}/{}/",
+                COVER_ART_ARCHIVE_RELEASE_GROUP_URL, release_group_id
+            ),
         )
         .await?
         {
@@ -279,7 +295,12 @@ async fn fetch_cover_art_from_endpoint(
     let thumbnail_url = preferred_image
         .thumbnails
         .as_ref()
-        .and_then(|thumbnails| thumbnails.size_250.clone().or_else(|| thumbnails.small.clone()))
+        .and_then(|thumbnails| {
+            thumbnails
+                .size_250
+                .clone()
+                .or_else(|| thumbnails.small.clone())
+        })
         .unwrap_or_else(|| preferred_image.image.clone());
 
     Ok(Some(CoverArtUrls {
@@ -352,8 +373,8 @@ fn escape_lucene(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
     for ch in value.chars() {
         match ch {
-            '+' | '-' | '&' | '|' | '!' | '(' | ')' | '{' | '}' | '[' | ']' | '^' | '"'
-            | '~' | '*' | '?' | ':' | '\\' | '/' => {
+            '+' | '-' | '&' | '|' | '!' | '(' | ')' | '{' | '}' | '[' | ']' | '^' | '"' | '~'
+            | '*' | '?' | ':' | '\\' | '/' => {
                 escaped.push('\\');
                 escaped.push(ch);
             }
@@ -366,19 +387,42 @@ fn escape_lucene(value: &str) -> String {
 fn rank_release(release: &MusicBrainzRelease, query: &CoverSearchQuery) -> i32 {
     let mut score = i32::try_from(release.score).unwrap_or_default() * 100;
 
-    if let Some(query_year) = query.year.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
-        if release.date.as_deref().is_some_and(|date| date.starts_with(query_year)) {
+    if let Some(query_year) = query
+        .year
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if release
+            .date
+            .as_deref()
+            .is_some_and(|date| date.starts_with(query_year))
+        {
             score += 25;
         }
     }
 
-    if let Some(query_country) = query.country.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
-        if release.country.as_deref().is_some_and(|country| country.eq_ignore_ascii_case(query_country)) {
+    if let Some(query_country) = query
+        .country
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if release
+            .country
+            .as_deref()
+            .is_some_and(|country| country.eq_ignore_ascii_case(query_country))
+        {
             score += 20;
         }
     }
 
-    if let Some(query_format) = query.format.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(query_format) = query
+        .format
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         if release_format(release)
             .as_deref()
             .is_some_and(|format| format_matches(query_format, format))
@@ -452,7 +496,10 @@ mod tests {
     #[test]
     fn test_build_release_query_combines_title_and_artist() {
         let query = build_release_query(Some("Remain in Light"), Some("Talking Heads"));
-        assert_eq!(query, "release:\"Remain in Light\" AND artist:\"Talking Heads\"");
+        assert_eq!(
+            query,
+            "release:\"Remain in Light\" AND artist:\"Talking Heads\""
+        );
     }
 
     #[test]
@@ -482,10 +529,10 @@ mod tests {
             score: u32,
         }
 
-        let numeric: Wrapper = serde_json::from_str(r#"{"score":100}"#)
-            .expect("numeric score should deserialize");
-        let text: Wrapper = serde_json::from_str(r#"{"score":"95"}"#)
-            .expect("string score should deserialize");
+        let numeric: Wrapper =
+            serde_json::from_str(r#"{"score":100}"#).expect("numeric score should deserialize");
+        let text: Wrapper =
+            serde_json::from_str(r#"{"score":"95"}"#).expect("string score should deserialize");
 
         assert_eq!(numeric.score, 100);
         assert_eq!(text.score, 95);
@@ -493,8 +540,14 @@ mod tests {
 
     #[test]
     fn test_normalize_title_value_trims_spaces_and_quotes() {
-        assert_eq!(normalize_title_value(Some("  \" Remain in Light \"  ")), Some("Remain in Light".to_string()));
-        assert_eq!(normalize_title_value(Some(" 'Fear of Music' ")), Some("Fear of Music".to_string()));
+        assert_eq!(
+            normalize_title_value(Some("  \" Remain in Light \"  ")),
+            Some("Remain in Light".to_string())
+        );
+        assert_eq!(
+            normalize_title_value(Some(" 'Fear of Music' ")),
+            Some("Fear of Music".to_string())
+        );
         assert_eq!(normalize_title_value(Some(" \"\" ")), None);
     }
 
@@ -524,7 +577,9 @@ mod tests {
                 first.image_url
             );
             assert!(
-                first.thumbnail_url.starts_with("https://coverartarchive.org/"),
+                first
+                    .thumbnail_url
+                    .starts_with("https://coverartarchive.org/"),
                 "expected canonical thumbnail URL, got '{}'",
                 first.thumbnail_url
             );
