@@ -1,5 +1,5 @@
-use base64::Engine;
-use reqwest::header::{ACCEPT, CONTENT_TYPE};
+use futures::stream::{self, StreamExt};
+use reqwest::header::ACCEPT;
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +12,7 @@ const VINYLVAULT_USER_AGENT: &str =
     "VinylVault/0.1.3 (https://github.com/ayllon/VinylVault; a.alvarezayllon@gmail.com)";
 const MAX_SEARCH_RESULTS: usize = 8;
 const MAX_CANDIDATES: usize = 5;
+const CANDIDATE_LOOKUP_CONCURRENCY: usize = 4;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CoverSearchQuery {
@@ -32,7 +33,7 @@ pub struct CoverCandidate {
     pub country: Option<String>,
     pub format: Option<String>,
     pub score: u32,
-    pub thumbnail_data_url: String,
+    pub thumbnail_url: String,
     pub image_url: String,
     pub source_url: String,
 }
@@ -80,14 +81,11 @@ struct ReleaseMedia {
 
 #[derive(Deserialize)]
 struct CoverArtResponse {
-    release: Option<String>,
     images: Vec<CoverArtImage>,
 }
 
 #[derive(Deserialize)]
 struct CoverArtImage {
-    #[serde(deserialize_with = "deserialize_identifier")]
-    id: String,
     image: String,
     front: bool,
     approved: bool,
@@ -101,16 +99,9 @@ struct CoverArtThumbnails {
     small: Option<String>,
 }
 
-enum CoverArtEndpoint<'a> {
-    Release { release_id: &'a str },
-    ReleaseGroup { release_group_id: &'a str },
-}
-
 struct CoverArtUrls {
     image_url: String,
-    image_fallback_url: String,
     thumbnail_url: String,
-    thumbnail_fallback_url: String,
 }
 
 pub async fn search_cover_candidates(query: &CoverSearchQuery) -> Result<Vec<CoverCandidate>, String> {
@@ -140,16 +131,30 @@ pub async fn search_cover_candidates(query: &CoverSearchQuery) -> Result<Vec<Cov
     let mut releases = search_response.releases;
     releases.sort_by_key(|release| std::cmp::Reverse(rank_release(release, query)));
 
-    let mut candidates = Vec::new();
-    for release in releases.into_iter().take(MAX_SEARCH_RESULTS) {
-        if candidates.len() >= MAX_CANDIDATES {
-            break;
-        }
+    let candidate_results = stream::iter(
+        releases
+            .into_iter()
+            .take(MAX_SEARCH_RESULTS)
+            .enumerate()
+            .map(|(index, release)| {
+                let client = client.clone();
+                async move { build_candidate(&client, release).await.map(|candidate| (index, candidate)) }
+            }),
+    )
+    .buffer_unordered(CANDIDATE_LOOKUP_CONCURRENCY)
+    .collect::<Vec<_>>()
+    .await;
 
-        if let Some(candidate) = build_candidate(&client, release).await? {
-            candidates.push(candidate);
-        }
-    }
+    let mut ordered_candidates = candidate_results
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
+    ordered_candidates.sort_by_key(|(index, _)| *index);
+
+    let candidates = ordered_candidates
+        .into_iter()
+        .filter_map(|(_, candidate)| candidate)
+        .take(MAX_CANDIDATES)
+        .collect();
 
     Ok(candidates)
 }
@@ -190,13 +195,6 @@ async fn build_candidate(
         return Ok(None);
     };
 
-    let thumbnail_data_url = download_thumbnail_data_url(
-        client,
-        &cover_art.thumbnail_url,
-        Some(&cover_art.thumbnail_fallback_url),
-        Some(&cover_art.image_fallback_url),
-    )
-    .await?;
     let artist = release_artist_name(&release);
     let format = release_format(&release);
     let release_group_id = release.release_group.as_ref().map(|group| group.id.clone());
@@ -210,7 +208,7 @@ async fn build_candidate(
         country: release.country.clone(),
         format,
         score: release.score,
-        thumbnail_data_url,
+        thumbnail_url: cover_art.thumbnail_url,
         image_url: cover_art.image_url,
         source_url: format!("https://musicbrainz.org/release/{}", release.id),
     }))
@@ -224,7 +222,6 @@ async fn fetch_cover_art(
     if let Some(image) = fetch_cover_art_from_endpoint(
         client,
         &format!("{}/{}/", COVER_ART_ARCHIVE_RELEASE_URL, release_id),
-        CoverArtEndpoint::Release { release_id },
     )
     .await?
     {
@@ -235,7 +232,6 @@ async fn fetch_cover_art(
         if let Some(image) = fetch_cover_art_from_endpoint(
             client,
             &format!("{}/{}/", COVER_ART_ARCHIVE_RELEASE_GROUP_URL, release_group_id),
-            CoverArtEndpoint::ReleaseGroup { release_group_id },
         )
         .await?
         {
@@ -249,7 +245,6 @@ async fn fetch_cover_art(
 async fn fetch_cover_art_from_endpoint(
     client: &reqwest::Client,
     url: &str,
-    endpoint: CoverArtEndpoint<'_>,
 ) -> Result<Option<CoverArtUrls>, String> {
     let response = client
         .get(url)
@@ -287,83 +282,10 @@ async fn fetch_cover_art_from_endpoint(
         .and_then(|thumbnails| thumbnails.size_250.clone().or_else(|| thumbnails.small.clone()))
         .unwrap_or_else(|| preferred_image.image.clone());
 
-    Ok(Some(build_cover_art_urls(
-        &metadata,
-        preferred_image,
-        thumbnail_url,
-        endpoint,
-    )))
-}
-
-async fn download_thumbnail_data_url(
-    client: &reqwest::Client,
-    thumbnail_url: &str,
-    fallback_thumbnail_url: Option<&str>,
-    fallback_image_url: Option<&str>,
-) -> Result<String, String> {
-    let response = match download_bytes_response(client, thumbnail_url).await {
-        Ok(response) => response,
-        Err(primary_error) => {
-            if let Some(fallback_thumbnail_url) = fallback_thumbnail_url {
-                match download_bytes_response(client, fallback_thumbnail_url).await {
-                    Ok(response) => response,
-                    Err(fallback_error) => {
-                        if let Some(fallback_image_url) = fallback_image_url {
-                            download_bytes_response(client, fallback_image_url)
-                                .await
-                                .map_err(|image_error| {
-                                    format!(
-                                        "Cover preview download failed for primary URL ({primary_error}), fallback thumbnail ({fallback_error}), and fallback image ({image_error})"
-                                    )
-                                })?
-                        } else {
-                            return Err(format!(
-                                "Cover preview download failed for primary URL ({primary_error}) and fallback thumbnail ({fallback_error})"
-                            ));
-                        }
-                    }
-                }
-            } else if let Some(fallback_image_url) = fallback_image_url {
-                download_bytes_response(client, fallback_image_url)
-                    .await
-                    .map_err(|image_error| {
-                        format!(
-                            "Cover preview download failed for primary URL ({primary_error}) and fallback image ({image_error})"
-                        )
-                    })?
-            } else {
-                return Err(format!("Cover preview download failed: {primary_error}"));
-            }
-        }
-    };
-
-    let content_type = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("image/jpeg")
-        .to_string();
-
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read cover preview bytes: {}", e))?;
-
-    let base64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-    Ok(format!("data:{};base64,{}", content_type, base64))
-}
-
-async fn download_bytes_response(
-    client: &reqwest::Client,
-    url: &str,
-) -> Result<reqwest::Response, String> {
-    client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("request error for {url}: {e}"))?
-        .error_for_status()
-        .map_err(|e| format!("HTTP error for {url}: {e}"))
+    Ok(Some(CoverArtUrls {
+        image_url: normalize_cover_art_url(&preferred_image.image),
+        thumbnail_url: normalize_cover_art_url(&thumbnail_url),
+    }))
 }
 
 fn normalize_search_value(value: Option<&str>) -> Option<String> {
@@ -381,80 +303,12 @@ fn normalize_title_value(value: Option<&str>) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-fn build_cover_art_urls(
-    metadata: &CoverArtResponse,
-    preferred_image: &CoverArtImage,
-    thumbnail_fallback_url: String,
-    endpoint: CoverArtEndpoint<'_>,
-) -> CoverArtUrls {
-    let image_extension = extract_file_extension(&preferred_image.image).unwrap_or("jpg");
-    let source_release_id = metadata
-        .release
-        .as_deref()
-        .and_then(extract_musicbrainz_release_id);
-
-    match endpoint {
-        CoverArtEndpoint::Release { release_id } => CoverArtUrls {
-            image_url: format!(
-                "{}/{}/{}.{}",
-                COVER_ART_ARCHIVE_RELEASE_URL, release_id, preferred_image.id, image_extension
-            ),
-            image_fallback_url: preferred_image.image.clone(),
-            thumbnail_url: format!(
-                "{}/{}/{}-250.jpg",
-                COVER_ART_ARCHIVE_RELEASE_URL, release_id, preferred_image.id
-            ),
-            thumbnail_fallback_url,
-        },
-        CoverArtEndpoint::ReleaseGroup { release_group_id } => {
-            if let Some(source_release_id) = source_release_id {
-                CoverArtUrls {
-                    image_url: format!(
-                        "{}/{}/{}.{}",
-                        COVER_ART_ARCHIVE_RELEASE_URL,
-                        source_release_id,
-                        preferred_image.id,
-                        image_extension
-                    ),
-                    image_fallback_url: preferred_image.image.clone(),
-                    thumbnail_url: format!(
-                        "{}/{}/{}-250.jpg",
-                        COVER_ART_ARCHIVE_RELEASE_URL, source_release_id, preferred_image.id
-                    ),
-                    thumbnail_fallback_url,
-                }
-            } else if preferred_image.front {
-                CoverArtUrls {
-                    image_url: format!(
-                        "{}/{}/front",
-                        COVER_ART_ARCHIVE_RELEASE_GROUP_URL, release_group_id
-                    ),
-                    image_fallback_url: preferred_image.image.clone(),
-                    thumbnail_url: format!(
-                        "{}/{}/front-250",
-                        COVER_ART_ARCHIVE_RELEASE_GROUP_URL, release_group_id
-                    ),
-                    thumbnail_fallback_url,
-                }
-            } else {
-                CoverArtUrls {
-                    image_url: preferred_image.image.clone(),
-                    image_fallback_url: preferred_image.image.clone(),
-                    thumbnail_url: thumbnail_fallback_url.clone(),
-                    thumbnail_fallback_url,
-                }
-            }
-        }
+fn normalize_cover_art_url(url: &str) -> String {
+    if let Some(stripped) = url.strip_prefix("http://") {
+        format!("https://{}", stripped)
+    } else {
+        url.to_string()
     }
-}
-
-fn extract_file_extension(url: &str) -> Option<&str> {
-    let file_name = url.rsplit('/').next()?;
-    file_name.rsplit('.').next().filter(|segment| *segment != file_name)
-}
-
-fn extract_musicbrainz_release_id(url: &str) -> Option<&str> {
-    url.trim_end_matches('/').rsplit('/').next()
 }
 
 fn deserialize_score<'de, D>(deserializer: D) -> Result<u32, D::Error>
@@ -473,23 +327,6 @@ where
         ScoreValue::Text(value) => value
             .parse::<u32>()
             .map_err(|error| de::Error::custom(format!("invalid score '{value}': {error}"))),
-    }
-}
-
-fn deserialize_identifier<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum IdentifierValue {
-        Number(u64),
-        Text(String),
-    }
-
-    match IdentifierValue::deserialize(deserializer)? {
-        IdentifierValue::Number(value) => Ok(value.to_string()),
-        IdentifierValue::Text(value) => Ok(value),
     }
 }
 
@@ -619,6 +456,18 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_cover_art_url_upgrades_http_to_https() {
+        assert_eq!(
+            normalize_cover_art_url("http://coverartarchive.org/release/1/2-250.jpg"),
+            "https://coverartarchive.org/release/1/2-250.jpg"
+        );
+        assert_eq!(
+            normalize_cover_art_url("https://coverartarchive.org/release/1/2-250.jpg"),
+            "https://coverartarchive.org/release/1/2-250.jpg"
+        );
+    }
+
+    #[test]
     fn test_format_matches_translates_lp_to_vinyl() {
         assert!(format_matches("LP", "12\" Vinyl"));
         assert!(format_matches("CD", "CD"));
@@ -640,23 +489,6 @@ mod tests {
 
         assert_eq!(numeric.score, 100);
         assert_eq!(text.score, 95);
-    }
-
-    #[test]
-    fn test_deserialize_identifier_accepts_number_and_string() {
-        #[derive(Deserialize)]
-        struct Wrapper {
-            #[serde(deserialize_with = "deserialize_identifier")]
-            id: String,
-        }
-
-        let numeric: Wrapper = serde_json::from_str(r#"{"id":41876738081}"#)
-            .expect("numeric id should deserialize");
-        let text: Wrapper = serde_json::from_str(r#"{"id":"2328662727"}"#)
-            .expect("string id should deserialize");
-
-        assert_eq!(numeric.id, "41876738081");
-        assert_eq!(text.id, "2328662727");
     }
 
     #[test]
@@ -692,8 +524,9 @@ mod tests {
                 first.image_url
             );
             assert!(
-                first.thumbnail_data_url.starts_with("data:image/"),
-                "expected data URL thumbnail preview"
+                first.thumbnail_url.starts_with("https://coverartarchive.org/"),
+                "expected canonical thumbnail URL, got '{}'",
+                first.thumbnail_url
             );
 
             let bytes = fetch_cover_image_bytes(&first.image_url)

@@ -19,7 +19,7 @@ export interface CoverCandidate {
   country: string | null;
   format: string | null;
   score: number;
-  thumbnail_data_url: string;
+  thumbnail_url: string;
   image_url: string;
   source_url: string;
 }

@@ -79,7 +79,7 @@ function CoverLookupDialog({
               <article className="cover-lookup-card" key={`${candidate.release_id}-${candidate.image_url}`}>
                 <img
                   className="cover-lookup-image"
-                  src={candidate.thumbnail_data_url}
+                  src={candidate.thumbnail_url}
                   alt={t("cover_lookup.preview_alt", {
                     title: candidate.title,
                     artist: candidate.artist,
