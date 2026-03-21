@@ -9,7 +9,7 @@ Desktop music-collection manager: a Tauri 2 app with a React/TypeScript frontend
 | Frontend | `app/src/` | Single-page React app, all UI in `App.tsx` |
 | Tauri/Rust | `app/src-tauri/src/lib.rs` | All IPC commands and DB logic |
 | Config | `app/src-tauri/tauri.conf.json` | App identifier, CSP, window settings |
-| Data | `data/` | Runtime SQLite DB + cover images in `covers/` |
+| Data | `$HOME/discos/` | Runtime SQLite DB (`discos.sqlite`) + cover images in `covers/`; override with `VINYLVAULT_DB_PATH` env var |
 | Migration | `scripts/mdb2sqlite.py` | One-time MDB → SQLite converter |
 
 **Data flow:** Frontend invokes Tauri commands via `@tauri-apps/api` → Rust opens SQLite via `rusqlite` (bundled, no system SQLite needed) → returns serialised JSON.
@@ -52,14 +52,14 @@ Rust is compiled by the Tauri CLI; no separate `cargo build` step is needed for 
 ### Rust / Tauri
 - All Tauri commands are in `lib.rs`, exposed with `#[tauri::command]`.
 - Use raw `rusqlite` SQL — no ORM. Queries use named params (`?1`, `?2`, …).
-- The `discos` table uses SQLite `rowid` as its implicit primary key (`id: i64`); never add an explicit `INTEGER PRIMARY KEY` column.
-- Column names in the database are **Spanish/uppercase**: `GRUPO`, `TITULO`, `FORMATO`, `ANIO`, `ESTILO`, `PAIS`, `CANCIONES`, `CREDITOS`, `OBSERV`. Keep this naming in all SQL queries.
-- Indexes on `GRUPO` and `TITULO` already exist; rely on them for search queries.
+- The `albums` table uses SQLite `rowid` as its implicit primary key (`id: i64`); never add an explicit `INTEGER PRIMARY KEY` column.
+- Column names are **English/lowercase**: `artist`, `title`, `format`, `year`, `style`, `country`, `tracks`, `credits`, `edition`, `notes`, `cd_cover_path`, `lp_cover_path`.
+- Indexes on `artist` and `title` already exist; rely on them for search queries.
 
 ### Cover Images
-- Stored at `data/covers/<2-char-prefix>/<sanitized-title>_cd.jpeg` and `..._lp.jpeg`.
-- The Tauri `assetProtocol` scope is `["**"]`; serve images via `asset://` protocol URLs.
-- CSP allows `img-src 'self' asset: https://asset.localhost data:`.
+- Stored relative to the DB directory: `covers/<2-char-prefix>/<sanitized-key>_<cd|lp>_<hash>.jpg`. The default DB directory is `$HOME/discos/`.
+- The Tauri `assetProtocol` scope is `$HOME/discos/**`; serve images via `asset://` protocol URLs.
+- CSP allows `img-src 'self' asset: https://asset.localhost http://asset.localhost data: https://coverartarchive.org`.
 
 ### Data Migration (Python)
 - `scripts/mdb2sqlite.py` targets Python ≥ 3.12; dependencies in `pyproject.toml` (`tqdm`, `Pillow`).
@@ -67,7 +67,7 @@ Rust is compiled by the Tauri CLI; no separate `cargo build` step is needed for 
 
 ## Potential Pitfalls
 
-- **DB path is not persisted** — the user selects the `.sqlite` file via a dialog every session. No path is saved in app state between launches.
+- **DB path** — the app always opens `$HOME/discos/discos.sqlite` (created automatically on first launch). Override with the `VINYLVAULT_DB_PATH` environment variable.
 - **Dev URL port** — `tauri.conf.json` hardcodes `http://localhost:5173`; if Vite picks a different port, update `devUrl` there.
 - **Window min-size** — window is fixed at 1200×800 minimum; don't design UI that requires less width.
 - **`npm run tauri -- dev`** — note the `--` separator; `npm run tauri dev` (without `--`) won't work.
