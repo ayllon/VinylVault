@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Registro Musical",
-        "width": 1200,
-        "height": 800,
+        "width": 1700,
+        "height": 850,
         "minWidth": 1200,
         "minHeight": 800,
         "resizable": true,
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost http://asset.localhost data:;",
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost http://asset.localhost data: https://coverartarchive.org;",
       "assetProtocol": {
         "enable": true,
         "scope": {

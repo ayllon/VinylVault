@@ -48,6 +48,7 @@
     "cancel": "Cancelar",
     "confirm_delete": "Confirmar borrado",
     "delete_sure": "¿Estás seguro de que quieres borrar este registro?",
+    "search_cover_online": "Buscar portada en internet",
     "paste": "Pegar",
     "copy": "Copiar",
     "copy_file_path": "Copiar ruta del archivo",
@@ -58,6 +59,23 @@
   "cover_copy_error": "Error al copiar la portada: {{error}}",
   "cover_path_copy_error": "Error al copiar la ruta de la portada: {{error}}",
   "cover_delete_error": "Error al borrar la portada {{type}}: {{error}}",
+
+  "cover_lookup": {
+    "title": "Buscar portada {{type}} en internet",
+    "subtitle": "Revisa las coincidencias y conserva solo la que quieras.",
+    "searching": "Buscando portadas en bases de datos online...",
+    "importing": "Importando portada...",
+    "no_results": "No se encontraron portadas que coincidan.",
+    "accept": "Usar esta portada",
+    "discard": "Descartar",
+    "open_source": "Abrir origen",
+    "search_with_google": "Buscar con Google",
+    "search_with_google_hint": "Prueba una búsqueda de imágenes más amplia.",
+    "open_source_error": "No se pudo abrir el enlace de origen. La URL se ha copiado al portapapeles: {{url}}",
+    "preview_alt": "Vista previa de portada para {{title}} de {{artist}}",
+    "search_error": "Error al buscar portadas: {{error}}",
+    "import_error": "Error al importar la portada seleccionada: {{error}}"
+  },
 
   "updates": {
     "tooltip": "Actualización disponible: {{version}}",
