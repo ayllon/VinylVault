@@ -57,5 +57,11 @@
   "cover_paste_error": "Error al guardar la portada {{type}}",
   "cover_copy_error": "Error al copiar la portada: {{error}}",
   "cover_path_copy_error": "Error al copiar la ruta de la portada: {{error}}",
-  "cover_delete_error": "Error al borrar la portada {{type}}: {{error}}"
+  "cover_delete_error": "Error al borrar la portada {{type}}: {{error}}",
+
+  "updates": {
+    "tooltip": "Actualización disponible: {{version}}",
+    "aria_label": "Abrir la versión {{version}} en GitHub",
+    "title": "Hay una versión más reciente disponible"
+  }
 }

@@ -57,5 +57,11 @@
   "cover_paste_error": "Error saving {{type}} cover",
   "cover_copy_error": "Error copying cover: {{error}}",
   "cover_path_copy_error": "Error copying cover file path: {{error}}",
-  "cover_delete_error": "Error deleting {{type}} cover: {{error}}"
+  "cover_delete_error": "Error deleting {{type}} cover: {{error}}",
+
+  "updates": {
+    "tooltip": "Update available: {{version}}",
+    "aria_label": "Open GitHub release {{version}}",
+    "title": "A newer version is available"
+  }
 }

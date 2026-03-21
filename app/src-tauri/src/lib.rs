@@ -1,6 +1,7 @@
 mod cover_storage;
 mod mdb_import;
 mod sanitize;
+mod update_checker;
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -13,6 +14,7 @@ use tauri::{Emitter, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::cover_storage::CoverStorage;
+use crate::update_checker::UpdateInfo;
 
 const DB_SCHEMA_VERSION: &str = "1";
 const META_KEY_SCHEMA_VERSION: &str = "schema_version";
@@ -601,6 +603,13 @@ fn is_db_empty(state: State<AppState>) -> Result<bool, String> {
 }
 
 #[tauri::command]
+async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    let current_version = app.package_info().version.clone();
+
+    update_checker::fetch_update_info(&current_version).await
+}
+
+#[tauri::command]
 async fn import_mdb(
     mdb_path: String,
     state: State<'_, AppState>,
@@ -724,6 +733,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_total_records,
             get_record,
@@ -738,6 +748,7 @@ pub fn run() {
             delete_cover_for_record,
             get_covers_dir,
             is_db_empty,
+            check_for_updates,
             import_mdb,
         ])
         .setup(|app| {

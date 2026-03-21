@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
@@ -67,6 +68,13 @@ interface GroupsAndTitlesData {
   formatos: string[];
 }
 
+interface UpdateInfo {
+  current_version: string;
+  latest_version: string;
+  release_url: string;
+  release_name: string | null;
+}
+
 function getImageSrc(path: string | null | undefined): string {
   if (!path) return "";
   return convertFileSrc(path);
@@ -94,6 +102,7 @@ function App() {
   const [searchArtist, setSearchArtist] = useState<string>("");
   const [searchAlbum, setSearchAlbum] = useState<string>("");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   // Check if DB is empty on mount
   useEffect(() => {
@@ -106,6 +115,27 @@ function App() {
       }
     }
     checkDb();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkForUpdates() {
+      try {
+        const update = await invoke<UpdateInfo | null>("check_for_updates");
+        if (!cancelled) {
+          setUpdateInfo(update);
+        }
+      } catch (error) {
+        console.error("Failed to check for updates:", error);
+      }
+    }
+
+    checkForUpdates();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadTotalRecords = useCallback(async () => {
@@ -422,6 +452,16 @@ function App() {
     } catch (e) {
       console.error(e);
       alert(t("delete_error", { error: e }));
+    }
+  }
+
+  async function handleOpenReleasePage() {
+    if (!updateInfo) return;
+
+    try {
+      await openUrl(updateInfo.release_url);
+    } catch (error) {
+      console.error("Failed to open release page:", error);
     }
   }
 
@@ -772,6 +812,18 @@ function App() {
         </button>
 
         <div className="nav-action-buttons">
+          {updateInfo && (
+            <button
+              type="button"
+              className="update-indicator"
+              onClick={handleOpenReleasePage}
+              title={t("updates.tooltip", { version: updateInfo.latest_version })}
+              aria-label={t("updates.aria_label", { version: updateInfo.latest_version })}
+            >
+              <span className="update-indicator-icon" aria-hidden="true">⬆️</span>
+              <span className="update-indicator-text">{t("updates.title")}</span>
+            </button>
+          )}
           <button onClick={handleAdd} className="btn-add">
             ➕ {t("actions.add")}
           </button>
