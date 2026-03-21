@@ -134,6 +134,7 @@ jobs:
         with:
           toolchain: stable
           override: true
+          cache: false
 
       - name: Cache Cargo
         uses: actions/cache@v5
@@ -162,7 +163,39 @@ jobs:
           cargo llvm-cov --workspace --all-features --lcov --output-path coverage/lcov.info
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v5
+        uses: SonarSource/sonarqube-scan-action@v7.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  tests-windows:
+    name: Tests Windows
+    runs-on: windows-latest
+    needs: version-alignment
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # 1.15.3
+        with:
+          toolchain: stable
+          override: true
+          cache: false
+
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            %USERPROFILE%\.cargo\registry
+            %USERPROFILE%\.cargo\git
+            app\src-tauri\target
+          key: ${{ runner.os }}-cargo-tests-${{ hashFiles('app/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-tests-
+            ${{ runner.os }}-cargo-
+      
+      - name: Run tests
+        working-directory: app/src-tauri
+        run: cargo test --workspace --all-features --verbose

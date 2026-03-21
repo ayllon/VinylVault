@@ -14,6 +14,10 @@ fn short_content_hash(bytes: &[u8]) -> String {
     format!("{:08x}", hash)[..6].to_string()
 }
 
+fn normalize_for_db(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 #[derive(Debug, Clone)]
 pub struct CoverStorage {
     db_dir: PathBuf,
@@ -41,7 +45,7 @@ impl CoverStorage {
         img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
         key: &str,
         suffix: &str,
-    ) -> Result<PathBuf, String> {
+    ) -> Result<String, String> {
         let prefix = if key.len() >= 2 { &key[..2] } else { key };
         let nested_dir = self.covers_dir.join(prefix);
         fs::create_dir_all(&nested_dir)
@@ -61,10 +65,10 @@ impl CoverStorage {
     }
 
     /// Convert an absolute cover path on disk to a DB-storable path relative to DB directory.
-    fn path_relative_to_db(&self, cover_path: &Path) -> Result<PathBuf, String> {
+    fn path_relative_to_db(&self, cover_path: &Path) -> Result<String, String> {
         cover_path
             .strip_prefix(&self.db_dir)
-            .map(|p| p.to_path_buf())
+            .map(normalize_for_db)
             .map_err(|_| {
                 format!(
                     "Cover path '{}' is not under DB directory '{}'",
@@ -143,7 +147,7 @@ mod tests {
         let rel = storage
             .path_relative_to_db(&cover_path)
             .expect("relative conversion failed");
-        assert_eq!(rel, Path::new("covers/ab/album_cd_abcdef.jpg"));
+        assert_eq!(rel, "covers/ab/album_cd_abcdef.jpg");
 
         fs::remove_dir_all(&root).expect("failed to cleanup temp root");
     }
@@ -249,11 +253,10 @@ mod tests {
             .save_cover_image(&img, "album", "cd")
             .expect("save failed");
 
-        let rel_str = rel.to_string_lossy();
-        assert!(rel_str.starts_with("covers/al/album_cd_"));
-        assert!(rel_str.ends_with(".jpg"));
+        assert!(rel.starts_with("covers/al/album_cd_"));
+        assert!(rel.ends_with(".jpg"));
 
-        let abs = storage.resolve_cover_path_from_db(&rel_str);
+        let abs = storage.resolve_cover_path_from_db(&rel);
         assert!(abs.exists());
 
         fs::remove_dir_all(&root).expect("failed to cleanup temp root");
