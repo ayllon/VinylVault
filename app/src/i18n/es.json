@@ -69,6 +69,8 @@
     "accept": "Usar esta portada",
     "discard": "Descartar",
     "open_source": "Abrir origen",
+    "search_with_google": "Buscar con Google",
+    "search_with_google_hint": "Prueba una búsqueda de imágenes más amplia.",
     "open_source_error": "No se pudo abrir el enlace de origen. La URL se ha copiado al portapapeles: {{url}}",
     "preview_alt": "Vista previa de portada para {{title}} de {{artist}}",
     "search_error": "Error al buscar portadas: {{error}}",

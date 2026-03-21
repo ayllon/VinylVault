@@ -670,6 +670,21 @@ body {
     padding: 20px 24px 0;
 }
 
+.cover-lookup-empty {
+    padding: 0 24px 24px;
+}
+
+.cover-lookup-google-link {
+    border: none;
+    background: none;
+    color: #2563eb;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 8px 0 0;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
 .cover-lookup-error {
     color: #b91c1c;
 }
@@ -691,6 +706,11 @@ body {
     border-radius: 12px;
     overflow: hidden;
     min-height: 100%;
+}
+
+.cover-lookup-card-google {
+    border-style: dashed;
+    background: #eff6ff;
 }
 
 .cover-lookup-image {
@@ -747,6 +767,14 @@ body {
 
 .cover-lookup-source:hover {
     text-decoration: underline;
+}
+
+.cover-lookup-actions .cover-lookup-google-button {
+    background: #1d4ed8;
+}
+
+.cover-lookup-actions .cover-lookup-google-button:hover {
+    background: #1e40af;
 }
 
 .cover-lookup-footer {

@@ -69,6 +69,8 @@
     "accept": "Use This Cover",
     "discard": "Discard",
     "open_source": "Open source",
+    "search_with_google": "Search with Google",
+    "search_with_google_hint": "Try a broader image search.",
     "open_source_error": "Could not open the source link. The URL was copied to the clipboard: {{url}}",
     "preview_alt": "Cover preview for {{title}} by {{artist}}",
     "search_error": "Error searching for covers: {{error}}",

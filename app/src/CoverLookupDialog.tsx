@@ -7,26 +7,27 @@ interface CoverLookupDialogProps {
   isOpen: boolean;
   suffix: CoverSuffix | null;
   candidates: CoverCandidate[];
+  googleSearchUrl: string | null;
   isLoading: boolean;
   errorMessage: string | null;
   onAccept: (candidate: CoverCandidate) => void;
   onClose: () => void;
 }
 
-async function openSourceUrl(
-  sourceUrl: string,
-  buildFailureMessage: (sourceUrl: string, error: string) => string,
+async function openExternalUrl(
+  url: string,
+  buildFailureMessage: (url: string, error: string) => string,
 ) {
   try {
-    await openUrl(sourceUrl);
+    await openUrl(url);
   } catch (error) {
     console.error("Failed to open cover source:", error);
     try {
-      await writeText(sourceUrl);
+      await writeText(url);
     } catch (clipboardError) {
       console.error("Failed to copy source URL to clipboard:", clipboardError);
     }
-    alert(buildFailureMessage(sourceUrl, String(error)));
+    alert(buildFailureMessage(url, String(error)));
   }
 }
 
@@ -34,6 +35,7 @@ function CoverLookupDialog({
   isOpen,
   suffix,
   candidates,
+  googleSearchUrl,
   isLoading,
   errorMessage,
   onAccept,
@@ -70,7 +72,24 @@ function CoverLookupDialog({
         {isLoading && <p className="cover-lookup-status">{t("cover_lookup.searching")}</p>}
         {!isLoading && errorMessage && <p className="cover-lookup-error">{errorMessage}</p>}
         {!isLoading && !errorMessage && candidates.length === 0 && (
-          <p className="cover-lookup-status">{t("cover_lookup.no_results")}</p>
+          <div className="cover-lookup-empty">
+            <p className="cover-lookup-status">{t("cover_lookup.no_results")}</p>
+            {googleSearchUrl && (
+              <button
+                type="button"
+                className="cover-lookup-google-link"
+                onClick={() => openExternalUrl(
+                  googleSearchUrl,
+                  (sourceUrl, error) => t("cover_lookup.open_source_error", {
+                    url: sourceUrl,
+                    error,
+                  }),
+                )}
+              >
+                {t("cover_lookup.search_with_google")}
+              </button>
+            )}
+          </div>
         )}
 
         {!isLoading && candidates.length > 0 && (
@@ -98,7 +117,7 @@ function CoverLookupDialog({
                   <button
                     type="button"
                     className="cover-lookup-source"
-                    onClick={() => openSourceUrl(
+                    onClick={() => openExternalUrl(
                       candidate.source_url,
                       (sourceUrl, error) => t("cover_lookup.open_source_error", {
                         url: sourceUrl,
@@ -114,6 +133,29 @@ function CoverLookupDialog({
                 </div>
               </article>
             ))}
+            {googleSearchUrl && (
+              <article className="cover-lookup-card cover-lookup-card-google" key="google-search-option">
+                <div className="cover-lookup-meta">
+                  <strong>{t("cover_lookup.search_with_google")}</strong>
+                  <span>{t("cover_lookup.search_with_google_hint")}</span>
+                </div>
+                <div className="cover-lookup-actions">
+                  <button
+                    type="button"
+                    className="cover-lookup-google-button"
+                    onClick={() => openExternalUrl(
+                      googleSearchUrl,
+                      (sourceUrl, error) => t("cover_lookup.open_source_error", {
+                        url: sourceUrl,
+                        error,
+                      }),
+                    )}
+                  >
+                    {t("cover_lookup.search_with_google")}
+                  </button>
+                </div>
+              </article>
+            )}
           </div>
         )}
 

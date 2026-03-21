@@ -95,6 +95,23 @@ function getImageSrc(path: string | null | undefined): string {
   return convertFileSrc(path);
 }
 
+function buildGoogleCoverSearchUrl(record: RecordData | null): string | null {
+  if (!record) {
+    return null;
+  }
+
+  const query = [record.artist, record.title, "album cover"]
+    .map((value) => value?.trim() ?? "")
+    .filter((value) => value.length > 0)
+    .join(" ");
+
+  if (!query) {
+    return null;
+  }
+
+  return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+}
+
 function App() {
   const { t } = useTranslation();
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
@@ -1010,6 +1027,7 @@ function App() {
         isOpen={coverLookup.isOpen}
         suffix={coverLookup.suffix}
         candidates={coverLookup.candidates}
+        googleSearchUrl={buildGoogleCoverSearchUrl(currentRecord)}
         isLoading={coverLookup.isLoading}
         errorMessage={coverLookup.errorMessage}
         onAccept={acceptCoverCandidate}
