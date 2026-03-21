@@ -1,4 +1,5 @@
 mod cover_storage;
+mod cover_lookup;
 mod mdb_import;
 mod sanitize;
 mod update_checker;
@@ -13,6 +14,7 @@ use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
+use crate::cover_lookup::{CoverCandidate, CoverSearchQuery};
 use crate::cover_storage::CoverStorage;
 use crate::update_checker::UpdateInfo;
 
@@ -554,6 +556,36 @@ async fn save_cover_paste_from_clipboard(
 }
 
 #[tauri::command]
+async fn search_cover_candidates(query: CoverSearchQuery) -> Result<Vec<CoverCandidate>, String> {
+    cover_lookup::search_cover_candidates(&query).await
+}
+
+#[tauri::command]
+async fn import_cover_from_url(
+    record_id: i64,
+    suffix: String,
+    image_url: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let image_bytes = cover_lookup::fetch_cover_image_bytes(&image_url).await?;
+    let dyn_img = image::load_from_memory(&image_bytes)
+        .map_err(|e| format!("Failed to decode downloaded cover image: {}", e))?;
+    let rgba = dyn_img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+
+    let conn = state.db_pool.get().map_err(|e| e.to_string())?;
+    save_cover_from_rgba_impl(
+        &conn,
+        &state.cover_storage,
+        record_id,
+        rgba.into_raw(),
+        width,
+        height,
+        &suffix,
+    )
+}
+
+#[tauri::command]
 async fn copy_cover_to_clipboard(app: tauri::AppHandle, cover_path: String) -> Result<(), String> {
     use tauri::image::Image;
 
@@ -743,6 +775,8 @@ pub fn run() {
             delete_record,
             save_cover_paste,
             save_cover_paste_from_clipboard,
+            search_cover_candidates,
+            import_cover_from_url,
             copy_cover_to_clipboard,
             delete_cover_for_record,
             get_covers_dir,

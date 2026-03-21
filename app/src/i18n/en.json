@@ -48,6 +48,7 @@
     "cancel": "Cancel",
     "confirm_delete": "Confirm delete",
     "delete_sure": "Are you sure you want to delete this record?",
+    "search_cover_online": "Search Cover Online",
     "paste": "Paste",
     "copy": "Copy",
     "copy_file_path": "Copy File Path",
@@ -58,6 +59,21 @@
   "cover_copy_error": "Error copying cover: {{error}}",
   "cover_path_copy_error": "Error copying cover file path: {{error}}",
   "cover_delete_error": "Error deleting {{type}} cover: {{error}}",
+
+  "cover_lookup": {
+    "title": "Find {{type}} cover online",
+    "subtitle": "Review the matches and keep only the one you want.",
+    "searching": "Searching online databases for cover art...",
+    "importing": "Importing cover...",
+    "no_results": "No matching covers were found.",
+    "accept": "Use This Cover",
+    "discard": "Discard",
+    "open_source": "Open source",
+    "open_source_error": "Could not open the source link. The URL was copied to the clipboard: {{url}}",
+    "preview_alt": "Cover preview for {{title}} by {{artist}}",
+    "search_error": "Error searching for covers: {{error}}",
+    "import_error": "Error importing the selected cover: {{error}}"
+  },
 
   "updates": {
     "tooltip": "Update available: {{version}}",

@@ -7,6 +7,13 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
+import CoverLookupDialog from "./CoverLookupDialog";
+import {
+  importCoverFromUrl,
+  searchCoverCandidates,
+  type CoverCandidate,
+  type CoverSuffix,
+} from "./coverLookup";
 import "./App.css";
 
 type SelectOption = { value: string; label: string };
@@ -75,6 +82,14 @@ interface UpdateInfo {
   release_name: string | null;
 }
 
+interface CoverLookupState {
+  isOpen: boolean;
+  suffix: CoverSuffix | null;
+  isLoading: boolean;
+  errorMessage: string | null;
+  candidates: CoverCandidate[];
+}
+
 function getImageSrc(path: string | null | undefined): string {
   if (!path) return "";
   return convertFileSrc(path);
@@ -103,6 +118,14 @@ function App() {
   const [searchAlbum, setSearchAlbum] = useState<string>("");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [coverImportingSuffix, setCoverImportingSuffix] = useState<CoverSuffix | null>(null);
+  const [coverLookup, setCoverLookup] = useState<CoverLookupState>({
+    isOpen: false,
+    suffix: null,
+    isLoading: false,
+    errorMessage: null,
+    candidates: [],
+  });
 
   // Check if DB is empty on mount
   useEffect(() => {
@@ -413,6 +436,88 @@ function App() {
     setContextMenu(null);
   }
 
+  async function openCoverLookup(suffix: CoverSuffix) {
+    if (!currentRecord) {
+      setContextMenu(null);
+      return;
+    }
+
+    setContextMenu(null);
+    setCoverLookup({
+      isOpen: true,
+      suffix,
+      isLoading: true,
+      errorMessage: null,
+      candidates: [],
+    });
+
+    try {
+      const candidates = await searchCoverCandidates({
+        artist: currentRecord.artist,
+        title: currentRecord.title,
+        year: currentRecord.year,
+        format: currentRecord.format,
+        country: currentRecord.country,
+      });
+
+      setCoverLookup({
+        isOpen: true,
+        suffix,
+        isLoading: false,
+        errorMessage: null,
+        candidates,
+      });
+    } catch (error) {
+      console.error("Failed to search for cover candidates:", error);
+      setCoverLookup({
+        isOpen: true,
+        suffix,
+        isLoading: false,
+        errorMessage: t("cover_lookup.search_error", { error: String(error) }),
+        candidates: [],
+      });
+    }
+  }
+
+  function closeCoverLookup() {
+    setCoverLookup({
+      isOpen: false,
+      suffix: null,
+      isLoading: false,
+      errorMessage: null,
+      candidates: [],
+    });
+  }
+
+  async function acceptCoverCandidate(candidate: CoverCandidate) {
+    if (!currentRecord || !coverLookup.suffix) {
+      return;
+    }
+
+    const selectedSuffix = coverLookup.suffix;
+    closeCoverLookup();
+    setCoverImportingSuffix(selectedSuffix);
+
+    try {
+      const newPath = await importCoverFromUrl(
+        currentRecord.id,
+        selectedSuffix,
+        candidate.image_url,
+      );
+
+      if (selectedSuffix === "cd") {
+        setCurrentRecord({ ...currentRecord, cd_cover_path: newPath });
+      } else {
+        setCurrentRecord({ ...currentRecord, lp_cover_path: newPath });
+      }
+    } catch (error) {
+      console.error("Failed to import selected cover:", error);
+      alert(t("cover_lookup.import_error", { error: String(error) }));
+    } finally {
+      setCoverImportingSuffix(null);
+    }
+  }
+
   // Silent autosaver function
   async function handleSave() {
     if (!currentRecord) return;
@@ -673,9 +778,10 @@ function App() {
           <label htmlFor="cd-cover-button">{t("fields.cd_cover")}</label>
           <button
             type="button"
-            className="photo-box"
+            className={`photo-box${coverImportingSuffix === "cd" ? " is-busy" : ""}`}
             id="cd-cover-button"
             onContextMenu={(e) => handleCoverContextMenu(e, "cd")}
+            disabled={coverImportingSuffix === "cd"}
           >
             {currentRecord?.cd_cover_path && (
               <img
@@ -685,6 +791,9 @@ function App() {
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
             )}
+            {coverImportingSuffix === "cd" && (
+              <span className="photo-box-status">{t("cover_lookup.importing")}</span>
+            )}
           </button>
         </div>
 
@@ -692,9 +801,10 @@ function App() {
           <label htmlFor="lp-cover-button">{t("fields.lp_cover")}</label>
           <button
             type="button"
-            className="photo-box"
+            className={`photo-box${coverImportingSuffix === "lp" ? " is-busy" : ""}`}
             id="lp-cover-button"
             onContextMenu={(e) => handleCoverContextMenu(e, "lp")}
+            disabled={coverImportingSuffix === "lp"}
           >
             {currentRecord?.lp_cover_path && (
               <img
@@ -703,6 +813,9 @@ function App() {
                 onError={(e) => (e.currentTarget.style.display = "none")}
                 onLoad={(e) => (e.currentTarget.style.display = "block")}
               />
+            )}
+            {coverImportingSuffix === "lp" && (
+              <span className="photo-box-status">{t("cover_lookup.importing")}</span>
             )}
           </button>
         </div>
@@ -866,6 +979,10 @@ function App() {
           className="context-menu"
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
         >
+          <button onClick={() => openCoverLookup(contextMenu.suffix)}>
+            <span className="menu-item-icon" aria-hidden="true">🌐</span>
+            {t("actions.search_cover_online")}
+          </button>
           <button onClick={() => pasteFromClipboard(contextMenu.suffix)}>
             <span className="menu-item-icon" aria-hidden="true">📥</span>
             {t("actions.paste")}
@@ -888,6 +1005,16 @@ function App() {
           )}
         </div>
       )}
+
+      <CoverLookupDialog
+        isOpen={coverLookup.isOpen}
+        suffix={coverLookup.suffix}
+        candidates={coverLookup.candidates}
+        isLoading={coverLookup.isLoading}
+        errorMessage={coverLookup.errorMessage}
+        onAccept={acceptCoverCandidate}
+        onClose={closeCoverLookup}
+      />
     </div>
   );
 }
