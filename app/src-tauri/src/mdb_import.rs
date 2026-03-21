@@ -156,7 +156,7 @@ where
                     if !cd_data.is_empty() {
                         if let Ok(img) = extract_ole_image(cd_data) {
                             if let Ok(rel) = cover_storage.save_cover_image(&img, &key, "cd") {
-                                portada_cd_path = Some(rel.to_string_lossy().to_string());
+                                portada_cd_path = Some(rel);
                             }
                         }
                     }
@@ -169,7 +169,7 @@ where
                     if !lp_data.is_empty() {
                         if let Ok(img) = extract_ole_image(lp_data) {
                             if let Ok(rel) = cover_storage.save_cover_image(&img, &key, "lp") {
-                                portada_lp_path = Some(rel.to_string_lossy().to_string());
+                                portada_lp_path = Some(rel);
                             }
                         }
                     }
