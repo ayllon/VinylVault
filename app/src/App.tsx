@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -46,6 +46,8 @@ const SELECT_THEME = (theme: Theme): Theme => ({
     primary25: "#ebf8ff",
   },
 });
+
+const CONTEXT_MENU_VIEWPORT_MARGIN = 8;
 
 interface RecordData {
   id: number;
@@ -254,8 +256,40 @@ function App() {
     };
   }, [deleteTargetId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!contextMenu) return;
+
+    const clampContextMenuToViewport = () => {
+      const menuElement = contextMenuRef.current;
+      if (!(menuElement instanceof HTMLElement)) {
+        return;
+      }
+
+      const rect = menuElement.getBoundingClientRect();
+      const maxX = Math.max(
+        CONTEXT_MENU_VIEWPORT_MARGIN,
+        window.innerWidth - rect.width - CONTEXT_MENU_VIEWPORT_MARGIN,
+      );
+      const maxY = Math.max(
+        CONTEXT_MENU_VIEWPORT_MARGIN,
+        window.innerHeight - rect.height - CONTEXT_MENU_VIEWPORT_MARGIN,
+      );
+
+      const nextX = Math.min(Math.max(contextMenu.x, CONTEXT_MENU_VIEWPORT_MARGIN), maxX);
+      const nextY = Math.min(Math.max(contextMenu.y, CONTEXT_MENU_VIEWPORT_MARGIN), maxY);
+
+      if (nextX !== contextMenu.x || nextY !== contextMenu.y) {
+        setContextMenu((prev) =>
+          prev
+            ? {
+              ...prev,
+              x: nextX,
+              y: nextY,
+            }
+            : prev,
+        );
+      }
+    };
 
     const handleOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node | null;
@@ -270,9 +304,15 @@ function App() {
       }
     };
 
+    const handleResize = () => {
+      clampContextMenuToViewport();
+    };
+
     globalThis.addEventListener("mousedown", handleOutsideClick);
     globalThis.addEventListener("keydown", handleKeyDown);
+    globalThis.addEventListener("resize", handleResize);
 
+    clampContextMenuToViewport();
     const menuElement = contextMenuRef.current;
     if (menuElement instanceof HTMLElement) {
       menuElement.focus();
@@ -281,6 +321,7 @@ function App() {
     return () => {
       globalThis.removeEventListener("mousedown", handleOutsideClick);
       globalThis.removeEventListener("keydown", handleKeyDown);
+      globalThis.removeEventListener("resize", handleResize);
     };
   }, [contextMenu]);
 
