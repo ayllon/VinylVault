@@ -1,73 +1,44 @@
-# React + TypeScript + Vite
+# VinylVault Frontend (app)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend workspace for VinylVault, built with Vite + React + TypeScript.
 
-Currently, two official plugins are available:
+The desktop app runtime is provided by Tauri and Rust in `app/src-tauri/`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
 
-## React Compiler
+- React 19 + TypeScript (strict mode)
+- Vite for frontend build/dev server
+- i18next + react-i18next for localization
+- react-select for searchable dropdowns
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Commands
 
-## Expanding the ESLint configuration
+Run from this directory (`app/`):
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
+npm run build
+npm run lint
+npm run preview
+npm run tauri -- dev
+npm run tauri -- build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Project Structure
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `src/App.tsx`: Main UI (single-page app)
+- `src/App.css` and `src/index.css`: App styling
+- `src/i18n/config.ts`: i18next initialization
+- `src/i18n/es.json`: Spanish translations
+- `src/i18n/en.json`: English translations
+- `src-tauri/`: Rust backend and Tauri configuration
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Frontend Conventions
+
+- All user-facing text must go through i18n keys (no hardcoded strings).
+- Keep CSS in plain `.css` files (no Tailwind/CSS modules).
+- Keep additions in `App.tsx` unless extraction is clearly warranted.
+- Prefer save-on-blur behavior for editable fields.
+
+See the root [I18N_GUIDE.md](../I18N_GUIDE.md) for translation key organization and usage examples.

@@ -1,92 +1,104 @@
 # VinylVault / Registro Musical
 
-A desktop music-records manager built with a Vite + React (TypeScript) frontend and Tauri (Rust) backend for native packaging. The app window title shown in the Tauri config is "Registro Musical".
+Desktop music-collection manager built with a React + TypeScript frontend and a Tauri 2 + Rust backend.
 
-This project is a modern rewrite of a Microsoft Access application I built for my father in 2001 — he is still using the original, and the migration to a cross-platform native app has been long overdue.
+This project is a modern rewrite of the legacy Microsoft Access app "Registro Musical".
 
 ## Download & Install
 
-**For end users:** See [DOWNLOAD.md](DOWNLOAD.md) for installation instructions and links to release artifacts.
+For end users, see [DOWNLOAD.md](DOWNLOAD.md) for installation instructions and release links.
 
-Releases are published on GitHub from version tags (`v*`) and include:
+Releases are published on GitHub from version tags (`v*`) and currently include:
 - Linux `.rpm`
 - Windows `.exe`
 
 Project releases page:
 - https://github.com/ayllon/VinylVault/releases
 
-## Contents
+## Repository Layout
 
-- `app/` — frontend (Vite + React + TypeScript) and Tauri frontend folder
-- `app/src-tauri/` — Tauri configuration and Rust sources for the native app
-- `data/` — local data, including `covers/` image folders
-- `scripts/` — helper scripts (e.g. `mdb2sqlite.py`)
+- `app/`: Frontend app workspace (Vite + React + TypeScript)
+- `app/src/`: Frontend source code
+- `app/src-tauri/`: Tauri configuration and Rust backend
+- `.github/workflows/`: CI and release pipelines
 
 ## Prerequisites
 
-- Node.js (16+ recommended), `npm` or `pnpm`/`yarn`
-- Rust toolchain (rustup + cargo) for Tauri native builds
-- Tauri prerequisites (see https://tauri.app/start/prerequisites)
+- Node.js 22.x and npm
+- Rust stable toolchain (`rustup default stable`)
+- Tauri system prerequisites for your platform: https://tauri.app/start/prerequisites
 
 ## Development
 
-1. Install frontend dependencies
+Run all commands from `app/` unless noted.
+
+1. Install dependencies
 
 ```bash
 cd app
 npm install
 ```
 
-2. Run the frontend dev server (Vite)
+2. Frontend-only development server
 
 ```bash
 npm run dev
 ```
 
-3. Run the Tauri app (native window) in dev mode
-
-From `app/`, use the `tauri` script. This invokes the Tauri CLI; if you don't have the CLI globally installed, the script will still work via the project's devDependency:
+3. Full desktop app in development mode
 
 ```bash
-cd app
 npm run tauri -- dev
 ```
 
-This opens the native window and loads the frontend from Vite's dev server (devUrl is configured as `http://localhost:5173`).
+The Tauri dev window loads from `http://localhost:5173` (configured in `app/src-tauri/tauri.conf.json`).
 
-## Production build
+## Build
 
-1. Build the frontend (TypeScript + Vite)
+1. Build frontend assets
 
 ```bash
 cd app
-npm install   # ensure deps installed
 npm run build
 ```
 
-2. Build the native Tauri bundle
+2. Build native installer/bundle
 
 ```bash
 cd app
 npm run tauri -- build
 ```
 
-The `tauri build` step reads `app/src-tauri/tauri.conf.json` which is configured to use `../dist` as the frontend output directory.
+## Useful Commands
 
-## Useful scripts
+From `app/`:
 
-- `npm run dev` — start Vite dev server
-- `npm run build` — run `tsc -b` then `vite build` for production frontend assets
-- `npm run preview` — preview built frontend via Vite
-- `npm run tauri -- <cmd>` — run Tauri CLI commands (e.g., `npm run tauri -- dev`, `npm run tauri -- build`)
+- `npm run dev`: Start Vite dev server
+- `npm run build`: Run `tsc -b` and `vite build`
+- `npm run lint`: Run ESLint
+- `npm run preview`: Preview built frontend
+- `npm run tauri -- dev`: Run the Tauri app in dev mode
+- `npm run tauri -- build`: Build native bundles
 
-## Notes about the repository
+From `app/src-tauri/`:
 
-- Frontend code lives in `app/src/` (React + TypeScript).
-- Tauri config and Rust sources are under `app/src-tauri/`.
-- The top-level `data/covers/` directory contains album cover images organized in subfolders; `scripts/mdb2sqlite.py` contains utilities used for data conversion.
+- `cargo test --workspace --all-features`: Run Rust tests
+
+## Runtime Data Location
+
+At runtime, the app database and cover assets are not stored in this repository.
+
+- Default DB path: `$HOME/discos/discos.sqlite`
+- Override DB path with: `VINYLVAULT_DB_PATH`
+- Cover images are stored relative to the DB directory under `covers/`
+
+## Notes
+
+- The desktop window title in Tauri config is currently `Registro Musical`.
+- Frontend localization uses i18next with Spanish and English. See [I18N_GUIDE.md](I18N_GUIDE.md).
 
 ## Troubleshooting
 
-- If Tauri CLI fails: ensure Rust toolchain is installed (`rustup default stable`) and that required platform toolchains are present. Consider installing the Tauri CLI globally with `npm i -g @tauri-apps/cli` or use the local script: `npm run tauri -- help`.
-- If the frontend port is different, update `devUrl` in `app/src-tauri/tauri.conf.json` or run Vite on the configured port.
+- If `npm run tauri -- dev` fails, verify Rust/toolchain prerequisites and platform libraries.
+- If the frontend starts on a different port, either run Vite on `5173` or update `devUrl` in `app/src-tauri/tauri.conf.json`.
+- If release builds fail, ensure versions match in `app/src-tauri/Cargo.toml` and `app/src-tauri/tauri.conf.json`.

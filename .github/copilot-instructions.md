@@ -10,7 +10,7 @@ Desktop music-collection manager: a Tauri 2 app with a React/TypeScript frontend
 | Tauri/Rust | `app/src-tauri/src/lib.rs` | All IPC commands and DB logic |
 | Config | `app/src-tauri/tauri.conf.json` | App identifier, CSP, window settings |
 | Data | `$HOME/discos/` | Runtime SQLite DB (`discos.sqlite`) + cover images in `covers/`; override with `VINYLVAULT_DB_PATH` env var |
-| Migration | `scripts/mdb2sqlite.py` | One-time MDB → SQLite converter |
+| Migration | `app/src-tauri/src/mdb_import.rs` | One-time MDB → SQLite importer (Rust, invoked from Tauri command) |
 
 **Data flow:** Frontend invokes Tauri commands via `@tauri-apps/api` → Rust opens SQLite via `rusqlite` (bundled, no system SQLite needed) → returns serialised JSON.
 
@@ -61,9 +61,10 @@ Rust is compiled by the Tauri CLI; no separate `cargo build` step is needed for 
 - The Tauri `assetProtocol` scope is `$HOME/discos/**`; serve images via `asset://` protocol URLs.
 - CSP allows `img-src 'self' asset: https://asset.localhost http://asset.localhost data: https://coverartarchive.org`.
 
-### Data Migration (Python)
-- `scripts/mdb2sqlite.py` targets Python ≥ 3.12; dependencies in `pyproject.toml` (`tqdm`, `Pillow`).
-- Run migration: `mdb-export <mdb> discos -b hex | python scripts/mdb2sqlite.py <csv> <sqlite>`.
+### Data Migration (MDB)
+- Migration is implemented in Rust at `app/src-tauri/src/mdb_import.rs`.
+- The frontend triggers import through the Tauri command `import_mdb` in `app/src-tauri/src/lib.rs`.
+- Do not reference `scripts/mdb2sqlite.py` or `pyproject.toml` for migration in this repository.
 
 ## Potential Pitfalls
 
