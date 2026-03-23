@@ -288,7 +288,7 @@ function App() {
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: "Microsoft Access", extensions: ["mdb"] }],
+        filters: [{ name: "Microsoft Access", extensions: ["mdb", "accdb"] }],
       });
       if (typeof selected === "string") {
         setImportProcessed(0);
