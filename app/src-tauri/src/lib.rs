@@ -3,6 +3,7 @@ mod cover_storage;
 mod mdb_import;
 mod sanitize;
 mod update_checker;
+mod window_sizing;
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -17,6 +18,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use crate::cover_lookup::{CoverCandidate, CoverSearchQuery};
 use crate::cover_storage::CoverStorage;
 use crate::update_checker::UpdateInfo;
+use crate::window_sizing::apply_adaptive_window_size;
 
 const DB_SCHEMA_VERSION: &str = "1";
 const META_KEY_SCHEMA_VERSION: &str = "schema_version";
@@ -792,6 +794,11 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            if let Err(error) = apply_adaptive_window_size(app.handle()) {
+                log::warn!("adaptive window sizing failed: {error}");
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())
