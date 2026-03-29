@@ -2,7 +2,7 @@ use rusqlite::Connection;
 use std::env;
 use std::path::{Path, PathBuf};
 
-pub const DB_SCHEMA_VERSION: &str = "2";
+pub const DB_SCHEMA_VERSION: &str = "1";
 pub const META_KEY_SCHEMA_VERSION: &str = "schema_version";
 pub const META_KEY_SOURCE_MDB_PATH: &str = "source_mdb_path";
 
@@ -58,6 +58,9 @@ pub fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
         conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
             .map_err(|e| e.to_string())?;
 
+        conn.execute("CREATE INDEX idx_albums_title ON albums (title)", [])
+            .map_err(|e| e.to_string())?;
+
         conn.execute(
             "CREATE INDEX idx_albums_artist_year ON albums (artist, year)",
             [],
@@ -66,36 +69,24 @@ pub fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
     }
 
     ensure_meta_schema(&conn)?;
-    run_migrations(&conn)?;
+    ensure_indexes(&conn)?;
+    set_meta_if_missing(&conn, META_KEY_SCHEMA_VERSION, DB_SCHEMA_VERSION)?;
 
     Ok(())
 }
 
-fn run_migrations(conn: &Connection) -> Result<(), String> {
-    // Treat missing or unparseable version as 1 (oldest known schema).
-    let current_version: String = conn
-        .query_row(
-            "SELECT value FROM meta WHERE key = ?1",
-            rusqlite::params![META_KEY_SCHEMA_VERSION],
-            |row| row.get(0),
-        )
-        .unwrap_or_else(|_| "1".to_string());
-
-    let mut version: u32 = current_version.parse().unwrap_or(1);
-
-    if version < 2 {
-        // Migration 1 → 2: ensure idx_albums_artist_year exists.
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_albums_artist_year ON albums (artist, year)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        version = 2;
-    }
-
-    // Always record the current schema version so new DBs and fully-migrated
-    // DBs both end up with an accurate value.
-    upsert_meta(conn, META_KEY_SCHEMA_VERSION, &version.to_string())?;
+fn ensure_indexes(conn: &Connection) -> Result<(), String> {
+    // Ensure required indexes exist regardless of recorded schema version.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_albums_title ON albums (title)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_albums_artist_year ON albums (artist, year)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -153,6 +144,9 @@ pub fn init_test_schema(conn: &Connection) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
+        .map_err(|e| e.to_string())?;
+
+    conn.execute("CREATE INDEX idx_albums_title ON albums (title)", [])
         .map_err(|e| e.to_string())?;
 
     conn.execute(
