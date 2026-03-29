@@ -11,6 +11,9 @@ import CoverPanel from "./CoverPanel";
 import NavigationBar from "./NavigationBar";
 import RecordForm from "./RecordForm";
 import { buildGoogleCoverSearchUrl, getImageSrc } from "./appUtils";
+import { useImport } from "./hooks/useImport";
+import { useRecord } from "./hooks/useRecord";
+import { useSearch } from "./hooks/useSearch";
 import {
   importCoverFromUrl,
   searchCoverCandidates,
@@ -74,24 +77,41 @@ interface CoverLookupState {
 function App() {
   const { t } = useTranslation();
   const [isDbEmpty, setIsDbEmpty] = useState<boolean | null>(null);
-  const [isImporting, setIsImporting] = useState<boolean>(false);
-  const [importProcessed, setImportProcessed] = useState<number>(0);
-  const [importTotal, setImportTotal] = useState<number>(0);
-  const [importPercent, setImportPercent] = useState<number>(0);
-  const [recordIndex, setRecordIndex] = useState<number>(0);
-  const [totalRecords, setTotalRecords] = useState<number>(0);
-  const [currentRecord, setCurrentRecord] = useState<RecordData | null>(null);
-
-  const [groups, setGroups] = useState<string[]>([]);
-  const [titles, setTitles] = useState<string[]>([]);
-  const [formats, setFormats] = useState<string[]>([]);
+  const {
+    isImporting,
+    setIsImporting,
+    importProcessed,
+    setImportProcessed,
+    importTotal,
+    setImportTotal,
+    importPercent,
+    setImportPercent,
+  } = useImport();
+  const {
+    recordIndex,
+    setRecordIndex,
+    totalRecords,
+    setTotalRecords,
+    currentRecord,
+    setCurrentRecord,
+  } = useRecord();
+  const {
+    searchArtist,
+    setSearchArtist,
+    searchAlbum,
+    setSearchAlbum,
+    groups,
+    setGroups,
+    titles,
+    setTitles,
+    formats,
+    setFormats,
+  } = useSearch();
   const [contextMenu, setContextMenu] = useState<CoverContextMenuState | null>(null);
 
   const loadSeqRef = useRef(0);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const [searchArtist, setSearchArtist] = useState<string>("");
-  const [searchAlbum, setSearchAlbum] = useState<string>("");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [coverImportingSuffix, setCoverImportingSuffix] = useState<CoverSuffix | null>(null);
@@ -144,7 +164,7 @@ function App() {
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [setTotalRecords]);
 
   const loadComboboxes = useCallback(async () => {
     try {
@@ -157,7 +177,7 @@ function App() {
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [setFormats, setGroups, setTitles]);
 
   useEffect(() => {
     if (isDbEmpty === false) {
@@ -166,11 +186,26 @@ function App() {
     }
   }, [isDbEmpty, loadTotalRecords, loadComboboxes]);
 
+  const loadRecord = useCallback(async (offset: number) => {
+    const seq = ++loadSeqRef.current;
+    try {
+      const rec = await invoke<RecordData>("get_record", { offset });
+      if (seq === loadSeqRef.current) {
+        setCurrentRecord(rec);
+      }
+    } catch (e) {
+      if (seq === loadSeqRef.current) {
+        console.error(e);
+        setCurrentRecord(null);
+      }
+    }
+  }, [setCurrentRecord]);
+
   useEffect(() => {
     if (isDbEmpty === false && totalRecords > 0) {
       loadRecord(recordIndex);
     }
-  }, [recordIndex, totalRecords, isDbEmpty]);
+  }, [recordIndex, totalRecords, isDbEmpty, loadRecord]);
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
@@ -196,7 +231,7 @@ function App() {
         unlisten();
       }
     };
-  }, []);
+  }, [setImportPercent, setImportProcessed, setImportTotal]);
 
   useEffect(() => {
     if (deleteTargetId === null) return;
@@ -308,21 +343,6 @@ function App() {
     } catch (e) {
       console.error(e);
       alert(t("file_dialog_error"));
-    }
-  }
-
-  async function loadRecord(offset: number) {
-    const seq = ++loadSeqRef.current;
-    try {
-      const rec = await invoke<RecordData>("get_record", { offset });
-      if (seq === loadSeqRef.current) {
-        setCurrentRecord(rec);
-      }
-    } catch (e) {
-      if (seq === loadSeqRef.current) {
-        console.error(e);
-        setCurrentRecord(null);
-      }
     }
   }
 
