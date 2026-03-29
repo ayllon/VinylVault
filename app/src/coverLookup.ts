@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { CoverSuffix } from "./types";
 
-export type CoverSuffix = "cd" | "lp";
 
 export interface CoverSearchQuery {
   artist: string | null;
@@ -39,3 +39,4 @@ export async function importCoverFromUrl(
     imageUrl,
   });
 }
+export { type CoverSuffix } from "./types";

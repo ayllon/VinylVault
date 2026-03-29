@@ -1,4 +1,5 @@
 export type SelectOption = { value: string; label: string };
+export type CoverSuffix = "cd" | "lp";
 
 export interface RecordData {
   id: number;
@@ -26,5 +27,5 @@ export interface UpdateInfo {
 export interface CoverContextMenuState {
   x: number;
   y: number;
-  suffix: "cd" | "lp";
+  suffix: CoverSuffix;
 }
