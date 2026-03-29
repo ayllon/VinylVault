@@ -644,6 +644,29 @@ function App() {
     );
   }
 
+  const navigationBarProps = {
+    groups,
+    titles,
+    searchArtist,
+    searchAlbum,
+    selectStyles: SELECT_STYLES,
+    selectTheme: SELECT_THEME,
+    recordIndex,
+    totalRecords,
+    updateInfo,
+    onSearchArtistChange: setSearchArtist,
+    onSearchAlbumChange: setSearchAlbum,
+    onSearchArtist: (value: string) => handleSearchClick("artist", value),
+    onSearchAlbum: (value: string) => handleSearchClick("title", value),
+    onFirstRecord: () => setRecordIndex(0),
+    onPreviousRecord: () => setRecordIndex(recordIndex - 1),
+    onNextRecord: () => setRecordIndex(recordIndex + 1),
+    onLastRecord: () => setRecordIndex(totalRecords - 1),
+    onOpenReleasePage: handleOpenReleasePage,
+    onAdd: handleAdd,
+    onDelete: handleDelete,
+  };
+
   return (
     <div className="form-container">
       <div className="form-body">
@@ -671,54 +694,10 @@ function App() {
           onDeleteCover={deleteCover}
         />
 
-        <NavigationBar
-          groups={groups}
-          titles={titles}
-          searchArtist={searchArtist}
-          searchAlbum={searchAlbum}
-          selectStyles={SELECT_STYLES}
-          selectTheme={SELECT_THEME}
-          recordIndex={recordIndex}
-          totalRecords={totalRecords}
-          updateInfo={updateInfo}
-          onSearchArtistChange={setSearchArtist}
-          onSearchAlbumChange={setSearchAlbum}
-          onSearchArtist={(value) => handleSearchClick("artist", value)}
-          onSearchAlbum={(value) => handleSearchClick("title", value)}
-          onFirstRecord={() => setRecordIndex(0)}
-          onPreviousRecord={() => setRecordIndex(recordIndex - 1)}
-          onNextRecord={() => setRecordIndex(recordIndex + 1)}
-          onLastRecord={() => setRecordIndex(totalRecords - 1)}
-          onOpenReleasePage={handleOpenReleasePage}
-          onAdd={handleAdd}
-          onDelete={handleDelete}
-          showBottomBar={false}
-        />
+        <NavigationBar {...navigationBarProps} showBottomBar={false} />
       </div>
 
-      <NavigationBar
-        groups={groups}
-        titles={titles}
-        searchArtist={searchArtist}
-        searchAlbum={searchAlbum}
-        selectStyles={SELECT_STYLES}
-        selectTheme={SELECT_THEME}
-        recordIndex={recordIndex}
-        totalRecords={totalRecords}
-        updateInfo={updateInfo}
-        onSearchArtistChange={setSearchArtist}
-        onSearchAlbumChange={setSearchAlbum}
-        onSearchArtist={(value) => handleSearchClick("artist", value)}
-        onSearchAlbum={(value) => handleSearchClick("title", value)}
-        onFirstRecord={() => setRecordIndex(0)}
-        onPreviousRecord={() => setRecordIndex(recordIndex - 1)}
-        onNextRecord={() => setRecordIndex(recordIndex + 1)}
-        onLastRecord={() => setRecordIndex(totalRecords - 1)}
-        onOpenReleasePage={handleOpenReleasePage}
-        onAdd={handleAdd}
-        onDelete={handleDelete}
-        showSearchControls={false}
-      />
+      <NavigationBar {...navigationBarProps} showSearchControls={false} />
 
       {deleteTargetId !== null && (
         <div

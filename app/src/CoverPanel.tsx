@@ -45,7 +45,7 @@ function CoverPanel({
           {currentRecord?.cd_cover_path && (
             <img
               src={getImageSrc(currentRecord.cd_cover_path)}
-              alt={`${currentRecord.title || "Album"} - CD Cover`}
+              alt={`${currentRecord.title || t("fields.album")} - ${t("fields.cd_cover")}`}
               onError={(e) => (e.currentTarget.style.display = "none")}
               onLoad={(e) => (e.currentTarget.style.display = "block")}
             />
@@ -68,7 +68,7 @@ function CoverPanel({
           {currentRecord?.lp_cover_path && (
             <img
               src={getImageSrc(currentRecord.lp_cover_path)}
-              alt={`${currentRecord.title || "Album"} - LP Cover`}
+              alt={`${currentRecord.title || t("fields.album")} - ${t("fields.lp_cover")}`}
               onError={(e) => (e.currentTarget.style.display = "none")}
               onLoad={(e) => (e.currentTarget.style.display = "block")}
             />

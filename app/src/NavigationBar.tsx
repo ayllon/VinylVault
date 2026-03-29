@@ -51,7 +51,7 @@ function NavigationBar({
   onDelete,
   showSearchControls = true,
   showBottomBar = true,
-}: NavigationBarProps) {
+}: Readonly<NavigationBarProps>) {
   const { t } = useTranslation();
 
   return (
@@ -133,12 +133,19 @@ function NavigationBar({
       {showBottomBar && (
       <div className="nav-bar-bottom">
         <span>{t("record.singular")}:</span>
-        <button onClick={onFirstRecord} disabled={recordIndex === 0}>
+        <button
+          onClick={onFirstRecord}
+          disabled={recordIndex === 0}
+          aria-label={t("record.first")}
+          title={t("record.first")}
+        >
           ⏮
         </button>
         <button
           onClick={onPreviousRecord}
           disabled={recordIndex === 0}
+          aria-label={t("record.previous")}
+          title={t("record.previous")}
         >
           ◀
         </button>
@@ -148,12 +155,16 @@ function NavigationBar({
         <button
           onClick={onNextRecord}
           disabled={recordIndex >= totalRecords - 1}
+          aria-label={t("record.next")}
+          title={t("record.next")}
         >
           ▶
         </button>
         <button
           onClick={onLastRecord}
           disabled={recordIndex >= totalRecords - 1}
+          aria-label={t("record.last")}
+          title={t("record.last")}
         >
           ⏭
         </button>

@@ -46,7 +46,11 @@
 
   "record": {
     "singular": "Registro",
-    "of": "de"
+    "of": "de",
+    "first": "Primer registro",
+    "previous": "Registro anterior",
+    "next": "Registro siguiente",
+    "last": "Último registro"
   },
 
   "actions": {

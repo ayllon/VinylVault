@@ -46,7 +46,11 @@
 
   "record": {
     "singular": "Record",
-    "of": "of"
+    "of": "of",
+    "first": "First record",
+    "previous": "Previous record",
+    "next": "Next record",
+    "last": "Last record"
   },
 
   "actions": {
