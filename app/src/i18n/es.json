@@ -10,9 +10,16 @@
   "import_success": "Se importaron correctamente {{count}} registros.",
   "import_error": "Error al importar la base de datos: {{error}}",
   "file_dialog_error": "Error al abrir el selector de archivos",
-  "record_not_found": "No se encontró el registro.",
   "add_error": "Error al añadir registro: {{error}}",
   "delete_error": "Error al borrar registro: {{error}}",
+
+  "errors": {
+    "record_not_found": "No se encontró el registro.",
+    "unexpected_title": "Algo salió mal.",
+    "unexpected_message": "Se produjo un error inesperado al renderizar la aplicación.",
+    "details": "Detalles del error",
+    "reload_hint": "Recarga la ventana para volver a intentarlo."
+  },
 
   "fields": {
     "group": "Grupo",
@@ -45,6 +52,7 @@
   "actions": {
     "add": "Añadir",
     "delete": "Borrar",
+    "reload": "Recargar",
     "cancel": "Cancelar",
     "confirm_delete": "Confirmar borrado",
     "delete_sure": "¿Estás seguro de que quieres borrar este registro?",

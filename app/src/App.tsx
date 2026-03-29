@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -8,6 +8,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
 import CoverLookupDialog from "./CoverLookupDialog";
+import { buildGoogleCoverSearchUrl, getImageSrc } from "./appUtils";
 import {
   importCoverFromUrl,
   searchCoverCandidates,
@@ -90,28 +91,6 @@ interface CoverLookupState {
   isLoading: boolean;
   errorMessage: string | null;
   candidates: CoverCandidate[];
-}
-
-function getImageSrc(path: string | null | undefined): string {
-  if (!path) return "";
-  return convertFileSrc(path);
-}
-
-function buildGoogleCoverSearchUrl(record: RecordData | null): string | null {
-  if (!record) {
-    return null;
-  }
-
-  const query = [record.artist, record.title, "album cover"]
-    .map((value) => value?.trim() ?? "")
-    .filter((value) => value.length > 0)
-    .join(" ");
-
-  if (!query) {
-    return null;
-  }
-
-  return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
 }
 
 function App() {
@@ -391,7 +370,7 @@ function App() {
       });
       setRecordIndex(offset);
     } catch {
-      alert("No se encontro el registro.");
+      alert(t("errors.record_not_found"));
     }
   }
 
