@@ -1,5 +1,7 @@
 import { vi } from 'vitest'
 
+type TauriEventCallback = (event: { payload: unknown }) => void
+
 const defaultRecord = {
   artist: null,
   cd_cover_path: null,
@@ -55,7 +57,15 @@ const defaultInvokeImplementation = async (command: string): Promise<unknown> =>
 
 export const invokeMock = vi.fn(defaultInvokeImplementation)
 export const convertFileSrcMock = vi.fn((path: string) => `asset://${path}`)
-export const listenMock = vi.fn(async () => () => undefined)
+const eventListeners = new Map<string, TauriEventCallback>()
+
+export const listenMock = vi.fn(async (eventName: string, callback: TauriEventCallback) => {
+  eventListeners.set(eventName, callback)
+
+  return () => {
+    eventListeners.delete(eventName)
+  }
+})
 export const openDialogMock = vi.fn(async () => null)
 export const openUrlMock = vi.fn(async () => undefined)
 export const writeTextMock = vi.fn(async () => undefined)
@@ -68,7 +78,14 @@ export function resetTauriMocks() {
   convertFileSrcMock.mockImplementation((path: string) => `asset://${path}`)
 
   listenMock.mockReset()
-  listenMock.mockResolvedValue(() => undefined)
+  eventListeners.clear()
+  listenMock.mockImplementation(async (eventName: string, callback: TauriEventCallback) => {
+    eventListeners.set(eventName, callback)
+
+    return () => {
+      eventListeners.delete(eventName)
+    }
+  })
 
   openDialogMock.mockReset()
   openDialogMock.mockResolvedValue(null)
@@ -78,4 +95,13 @@ export function resetTauriMocks() {
 
   writeTextMock.mockReset()
   writeTextMock.mockResolvedValue(undefined)
+}
+
+export function emitTauriEvent(eventName: string, payload: unknown) {
+  const callback = eventListeners.get(eventName)
+  if (!callback) {
+    return
+  }
+
+  callback({ payload })
 }

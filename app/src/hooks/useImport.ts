@@ -14,10 +14,11 @@ export function useImport() {
   const [importPercent, setImportPercent] = useState<number>(0);
 
   useEffect(() => {
+    let disposed = false;
     let unlisten: UnlistenFn | undefined;
 
     const setupListener = async () => {
-      unlisten = await listen<ImportProgressPayload>(
+      const nextUnlisten = await listen<ImportProgressPayload>(
         "mdb-import-progress",
         (event) => {
           const payload = event.payload;
@@ -26,6 +27,13 @@ export function useImport() {
           setImportPercent(payload.percent ?? 0);
         },
       );
+
+      if (disposed) {
+        nextUnlisten();
+        return;
+      }
+
+      unlisten = nextUnlisten;
     };
 
     setupListener().catch((e) => {
@@ -33,6 +41,7 @@ export function useImport() {
     });
 
     return () => {
+      disposed = true;
       if (unlisten) {
         unlisten();
       }
