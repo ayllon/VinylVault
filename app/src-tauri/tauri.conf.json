@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "VinylVault",
-  "version": "2026.3.1",
+  "version": "2026.3.3",
   "identifier": "io.github.ayllon.vinylvault",
   "build": {
     "frontendDist": "../dist",
