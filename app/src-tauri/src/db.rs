@@ -16,8 +16,8 @@ pub fn resolve_db_path() -> Result<PathBuf, String> {
     }
 }
 
-/// Create the database directory and schema if they do not yet exist, then run
-/// any pending migrations.
+/// Create the database directory and initial schema if they do not yet exist,
+/// and ensure required indexes and meta information are present.
 pub fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
     let dir = db_path
         .parent()

@@ -156,7 +156,12 @@ fn find_record_offset_impl(
                 artist,
                 title,
                 ROW_NUMBER() OVER (
-                    ORDER BY artist, year, rowid
+                    ORDER BY
+                        (artist IS NULL OR artist = ''),
+                        artist,
+                        (year IS NULL),
+                        year,
+                        rowid
                 ) - 1 AS offset
             FROM albums
         )
