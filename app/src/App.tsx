@@ -5,9 +5,11 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import Select from "react-select";
 import type { CSSObjectWithLabel, Theme, StylesConfig } from "react-select";
 import CoverLookupDialog from "./CoverLookupDialog";
+import CoverPanel from "./CoverPanel";
+import NavigationBar from "./NavigationBar";
+import RecordForm from "./RecordForm";
 import { buildGoogleCoverSearchUrl, getImageSrc } from "./appUtils";
 import {
   importCoverFromUrl,
@@ -15,9 +17,8 @@ import {
   type CoverCandidate,
   type CoverSuffix,
 } from "./coverLookup";
+import type { CoverContextMenuState, RecordData, SelectOption, UpdateInfo } from "./types";
 import "./App.css";
-
-type SelectOption = { value: string; label: string };
 
 const SELECT_STYLES: StylesConfig<SelectOption, false> = {
   control: (base: CSSObjectWithLabel) => ({
@@ -50,22 +51,6 @@ const SELECT_THEME = (theme: Theme): Theme => ({
 
 const CONTEXT_MENU_VIEWPORT_MARGIN = 8;
 
-interface RecordData {
-  id: number;
-  artist: string | null;
-  title: string | null;
-  format: string | null;
-  year: string | null;
-  style: string | null;
-  country: string | null;
-  tracks: string | null;
-  credits: string | null;
-  edition: string | null;
-  notes: string | null;
-  cd_cover_path: string | null;
-  lp_cover_path: string | null;
-}
-
 interface ImportProgressPayload {
   processed: number;
   total: number;
@@ -76,13 +61,6 @@ interface GroupsAndTitlesData {
   groups: string[];
   titles: string[];
   formatos: string[];
-}
-
-interface UpdateInfo {
-  current_version: string;
-  latest_version: string;
-  release_url: string;
-  release_name: string | null;
 }
 
 interface CoverLookupState {
@@ -107,7 +85,7 @@ function App() {
   const [groups, setGroups] = useState<string[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
   const [formats, setFormats] = useState<string[]>([]);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; suffix: "cd" | "lp" } | null>(null);
+  const [contextMenu, setContextMenu] = useState<CoverContextMenuState | null>(null);
 
   const loadSeqRef = useRef(0);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
@@ -566,6 +544,22 @@ function App() {
     }
   }
 
+  function handleFormatChange(nextFormat: string) {
+    if (!currentRecord) {
+      return;
+    }
+
+    const updated = {
+      ...currentRecord,
+      format: nextFormat,
+    };
+
+    setCurrentRecord(updated);
+    invoke("update_record", { record: updated })
+      .then(() => loadComboboxes())
+      .catch((e) => console.error("Auto-save failed:", e));
+  }
+
   async function handleAdd() {
     try {
       const newIndex = await invoke<number>("add_record");
@@ -650,339 +644,60 @@ function App() {
     );
   }
 
+  const navigationBarProps = {
+    groups,
+    titles,
+    searchArtist,
+    searchAlbum,
+    selectStyles: SELECT_STYLES,
+    selectTheme: SELECT_THEME,
+    recordIndex,
+    totalRecords,
+    updateInfo,
+    onSearchArtistChange: setSearchArtist,
+    onSearchAlbumChange: setSearchAlbum,
+    onSearchArtist: (value: string) => handleSearchClick("artist", value),
+    onSearchAlbum: (value: string) => handleSearchClick("title", value),
+    onFirstRecord: () => setRecordIndex(0),
+    onPreviousRecord: () => setRecordIndex(recordIndex - 1),
+    onNextRecord: () => setRecordIndex(recordIndex + 1),
+    onLastRecord: () => setRecordIndex(totalRecords - 1),
+    onOpenReleasePage: handleOpenReleasePage,
+    onAdd: handleAdd,
+    onDelete: handleDelete,
+  };
+
   return (
     <div className="form-container">
       <div className="form-body">
-        <div className="field-group artist">
-          <label>{t("fields.group")}:</label>
-          <input
-            type="text"
-            value={currentRecord?.artist || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({ ...currentRecord, artist: e.target.value })
-                : null
-            }
-            onBlur={handleSave}
-          />
-        </div>
-        <div className="field-group country">
-          <label>{t("fields.country")}:</label>
-          <input
-            type="text"
-            value={currentRecord?.country || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({ ...currentRecord, country: e.target.value })
-                : null
-            }
-            onBlur={handleSave}
-          />
-        </div>
+        <RecordForm
+          currentRecord={currentRecord}
+          formats={formats}
+          selectStyles={SELECT_STYLES}
+          selectTheme={SELECT_THEME}
+          onRecordChange={(nextRecord) => setCurrentRecord(nextRecord)}
+          onSave={handleSave}
+          onFormatChange={handleFormatChange}
+        />
 
-        <div className="field-group album">
-          <label>{t("fields.album")}:</label>
-          <input
-            type="text"
-            value={currentRecord?.title || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({ ...currentRecord, title: e.target.value })
-                : null
-            }
-            onBlur={handleSave}
-          />
-        </div>
-        <div className="field-group year">
-          <label>{t("fields.year")}:</label>
-          <input
-            type="text"
-            value={currentRecord?.year || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({ ...currentRecord, year: e.target.value })
-                : null
-            }
-            onBlur={handleSave}
-          />
-        </div>
-        <div className="field-group style">
-          <label>{t("fields.style")}:</label>
-          <input
-            type="text"
-            value={currentRecord?.style || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({ ...currentRecord, style: e.target.value })
-                : null
-            }
-            onBlur={handleSave}
-          />
-        </div>
-        <div className="field-group format">
-          <label>{t("fields.format")}:</label>
-          <Select
-            options={formats.map((f) => ({ value: f, label: f }))}
-            value={
-              currentRecord?.format
-                ? { value: currentRecord.format, label: currentRecord.format }
-                : null
-            }
-            onChange={(option) => {
-              if (currentRecord) {
-                const updated = {
-                  ...currentRecord,
-                  format: option?.value || "",
-                };
-                setCurrentRecord(updated);
-                invoke("update_record", { record: updated })
-                  .then(() => loadComboboxes())
-                  .catch((e) => console.error("Auto-save failed:", e));
-              }
-            }}
-            isSearchable
-            placeholder={t("search.format_placeholder")}
-            styles={SELECT_STYLES}
-            menuPortalTarget={document.body}
-            menuPosition="fixed"
-            menuPlacement="auto"
-            menuShouldBlockScroll={true}
-            theme={SELECT_THEME}
-          />
-        </div>
+        <CoverPanel
+          currentRecord={currentRecord}
+          coverImportingSuffix={coverImportingSuffix}
+          contextMenu={contextMenu}
+          contextMenuRef={contextMenuRef}
+          getImageSrc={getImageSrc}
+          onOpenContextMenu={handleCoverContextMenu}
+          onOpenCoverLookup={openCoverLookup}
+          onPasteFromClipboard={pasteFromClipboard}
+          onCopyToClipboard={copyToClipboard}
+          onCopyCoverPath={copyCoverFilePath}
+          onDeleteCover={deleteCover}
+        />
 
-        <div className="field-group edition">
-          <label>{t("fields.edition")}:</label>
-          <input
-            type="text"
-            value={currentRecord?.edition || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({ ...currentRecord, edition: e.target.value })
-                : null
-            }
-            onBlur={handleSave}
-          />
-        </div>
-
-        <div className="field-group notes">
-          <label>{t("fields.observations")}:</label>
-          <input
-            type="text"
-            value={currentRecord?.notes || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({ ...currentRecord, notes: e.target.value })
-                : null
-            }
-            onBlur={handleSave}
-          />
-        </div>
-
-        <div className="field-group tracks">
-          <label>{t("fields.songs")}</label>
-          <textarea
-            value={currentRecord?.tracks || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({
-                  ...currentRecord,
-                  tracks: e.target.value,
-                })
-                : null
-            }
-            onBlur={handleSave}
-          ></textarea>
-        </div>
-
-        <div className="field-group credits">
-          <label>{t("fields.credits")}</label>
-          <textarea
-            value={currentRecord?.credits || ""}
-            onChange={(e) =>
-              currentRecord
-                ? setCurrentRecord({
-                  ...currentRecord,
-                  credits: e.target.value,
-                })
-                : null
-            }
-            onBlur={handleSave}
-          ></textarea>
-        </div>
-
-        <div className="field-group photo-cd-wrapper">
-          <label htmlFor="cd-cover-button">{t("fields.cd_cover")}</label>
-          <button
-            type="button"
-            className={`photo-box${coverImportingSuffix === "cd" ? " is-busy" : ""}`}
-            id="cd-cover-button"
-            onContextMenu={(e) => handleCoverContextMenu(e, "cd")}
-            disabled={coverImportingSuffix === "cd"}
-          >
-            {currentRecord?.cd_cover_path && (
-              <img
-                src={getImageSrc(currentRecord.cd_cover_path)}
-                alt={`${currentRecord.title || "Album"} - CD Cover`}
-                onError={(e) => (e.currentTarget.style.display = "none")}
-                onLoad={(e) => (e.currentTarget.style.display = "block")}
-              />
-            )}
-            {coverImportingSuffix === "cd" && (
-              <span className="photo-box-status">{t("cover_lookup.importing")}</span>
-            )}
-          </button>
-        </div>
-
-        <div className="field-group photo-lp-wrapper">
-          <label htmlFor="lp-cover-button">{t("fields.lp_cover")}</label>
-          <button
-            type="button"
-            className={`photo-box${coverImportingSuffix === "lp" ? " is-busy" : ""}`}
-            id="lp-cover-button"
-            onContextMenu={(e) => handleCoverContextMenu(e, "lp")}
-            disabled={coverImportingSuffix === "lp"}
-          >
-            {currentRecord?.lp_cover_path && (
-              <img
-                src={getImageSrc(currentRecord.lp_cover_path)}
-                alt={`${currentRecord.title || "Album"} - LP Cover`}
-                onError={(e) => (e.currentTarget.style.display = "none")}
-                onLoad={(e) => (e.currentTarget.style.display = "block")}
-              />
-            )}
-            {coverImportingSuffix === "lp" && (
-              <span className="photo-box-status">{t("cover_lookup.importing")}</span>
-            )}
-          </button>
-        </div>
-
-        <div className="action-bar">
-          <div className="search-boxes">
-            <div className="search-box" style={{ flex: 2 }}>
-              <label>{t("search.by_group")}</label>
-              <Select
-                options={groups.map((g) => ({ value: g, label: g }))}
-                value={
-                  searchArtist
-                    ? { value: searchArtist, label: searchArtist }
-                    : null
-                }
-                onChange={(option) => {
-                  const newValue = option?.value || "";
-                  setSearchArtist(newValue);
-                  setSearchAlbum("");
-                  if (newValue) {
-                    // Search immediately with the selected value
-                    handleSearchClick("artist", newValue);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && searchArtist) {
-                    handleSearchClick("artist", searchArtist);
-                  }
-                }}
-                isSearchable
-                isClearable
-                placeholder={t("search.group_placeholder")}
-                styles={SELECT_STYLES}
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                menuPlacement="auto"
-                menuShouldBlockScroll={true}
-                theme={SELECT_THEME}
-              />
-            </div>
-
-            <div className="search-box" style={{ flex: 2 }}>
-              <label>{t("search.by_album")}</label>
-              <Select
-                options={titles.map((t) => ({ value: t, label: t }))}
-                value={
-                  searchAlbum
-                    ? { value: searchAlbum, label: searchAlbum }
-                    : null
-                }
-                onChange={(option) => {
-                  const newValue = option?.value || "";
-                  setSearchAlbum(newValue);
-                  setSearchArtist("");
-                  if (newValue) {
-                    // Search immediately with the selected value
-                    handleSearchClick("title", newValue);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && searchAlbum) {
-                    handleSearchClick("title", searchAlbum);
-                  }
-                }}
-                isSearchable
-                isClearable
-                placeholder={t("search.album_placeholder")}
-                styles={SELECT_STYLES}
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                menuPlacement="auto"
-                menuShouldBlockScroll={true}
-                theme={SELECT_THEME}
-              />
-            </div>
-
-
-          </div>
-        </div>
+        <NavigationBar {...navigationBarProps} showBottomBar={false} />
       </div>
 
-      <div className="nav-bar-bottom">
-        <span>{t("record.singular")}:</span>
-        <button onClick={() => setRecordIndex(0)} disabled={recordIndex === 0}>
-          ⏮
-        </button>
-        <button
-          onClick={() => setRecordIndex(recordIndex - 1)}
-          disabled={recordIndex === 0}
-        >
-          ◀
-        </button>
-        <span className="record-count">
-          {recordIndex + 1} {t("record.of")} {totalRecords}
-        </span>
-        <button
-          onClick={() => setRecordIndex(recordIndex + 1)}
-          disabled={recordIndex >= totalRecords - 1}
-        >
-          ▶
-        </button>
-        <button
-          onClick={() => setRecordIndex(totalRecords - 1)}
-          disabled={recordIndex >= totalRecords - 1}
-        >
-          ⏭
-        </button>
-
-        <div className="nav-action-buttons">
-          {updateInfo && (
-            <button
-              type="button"
-              className="update-indicator"
-              onClick={handleOpenReleasePage}
-              title={t("updates.tooltip", { version: updateInfo.latest_version })}
-              aria-label={t("updates.aria_label", { version: updateInfo.latest_version })}
-            >
-              <span className="update-indicator-icon" aria-hidden="true">⬆️</span>
-              <span className="update-indicator-text">{t("updates.title")}</span>
-            </button>
-          )}
-          <button onClick={handleAdd} className="btn-add">
-            ➕ {t("actions.add")}
-          </button>
-          <button onClick={handleDelete} className="btn-delete"
-          >
-            🗑 {t("actions.delete")}
-          </button>
-        </div>
-      </div>
+      <NavigationBar {...navigationBarProps} showSearchControls={false} />
 
       {deleteTargetId !== null && (
         <div
@@ -1007,39 +722,6 @@ function App() {
               </button>
             </div>
           </dialog>
-        </div>
-      )}
-
-      {contextMenu && (
-        <div
-          ref={contextMenuRef}
-          className="context-menu"
-          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
-        >
-          <button onClick={() => openCoverLookup(contextMenu.suffix)}>
-            <span className="menu-item-icon" aria-hidden="true">🌐</span>
-            {t("actions.search_cover_online")}
-          </button>
-          <button onClick={() => pasteFromClipboard(contextMenu.suffix)}>
-            <span className="menu-item-icon" aria-hidden="true">📥</span>
-            {t("actions.paste")}
-          </button>
-          {(contextMenu.suffix === "cd" ? currentRecord?.cd_cover_path : currentRecord?.lp_cover_path) && (
-            <>
-              <button onClick={() => copyToClipboard(contextMenu.suffix)}>
-                <span className="menu-item-icon" aria-hidden="true">🖼️</span>
-                {t("actions.copy")}
-              </button>
-              <button onClick={() => copyCoverFilePath(contextMenu.suffix)}>
-                <span className="menu-item-icon" aria-hidden="true">📂</span>
-                {t("actions.copy_file_path")}
-              </button>
-              <button onClick={() => deleteCover(contextMenu.suffix)}>
-                <span className="menu-item-icon" aria-hidden="true">🗑️</span>
-                {t("actions.delete_cover")}
-              </button>
-            </>
-          )}
         </div>
       )}
 

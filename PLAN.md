@@ -106,13 +106,7 @@ Do this only if component extraction in step 8 makes the boundaries clear.
 
 Nice-to-haves, all independent.
 
-### 10. Add CHANGELOG.md
-
-Start tracking changes per version, even minimally
-(`## 2026.3.0 — Initial public release`). Consider auto-generating from git
-tags in the release workflow.
-
-### 11. CSS deduplication
+### 10. CSS deduplication
 
 `app/src/App.css` has some repeated button hover colors and shared patterns. A
 pass to extract CSS custom properties for the color palette (partially done with
@@ -123,13 +117,7 @@ pass to extract CSS custom properties for the color palette (partially done with
 No formatter configured. Consider adding `.prettierrc` and a `format` npm
 script for consistent style. Low priority — ESLint already enforces most rules.
 
-### 13. SonarCloud frontend coverage
-
-Rust coverage is already wired (`cargo llvm-cov` → `lcov.info` → SonarCloud).
-Once Vitest is added (step 7), generate LCOV from it too and add the path to
-`sonar-project.properties` (e.g. `sonar.javascript.lcov.reportPaths`).
-
-### 14. Fix flaky remote test
+### 13. Fix flaky remote test
 
 `test_search_cover_candidates_hits_remote_services` in `cover_lookup.rs` hits
 live MusicBrainz/CoverArtArchive APIs and currently fails with a 401 from
