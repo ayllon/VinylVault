@@ -66,13 +66,13 @@ pub fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
     }
 
     ensure_meta_schema(&conn)?;
-    set_meta_if_missing(&conn, META_KEY_SCHEMA_VERSION, DB_SCHEMA_VERSION)?;
     run_migrations(&conn)?;
 
     Ok(())
 }
 
 fn run_migrations(conn: &Connection) -> Result<(), String> {
+    // Treat missing or unparseable version as 1 (oldest known schema).
     let current_version: String = conn
         .query_row(
             "SELECT value FROM meta WHERE key = ?1",
@@ -81,19 +81,21 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
         )
         .unwrap_or_else(|_| "1".to_string());
 
-    let version: u32 = current_version.parse().unwrap_or(1);
+    let mut version: u32 = current_version.parse().unwrap_or(1);
 
     if version < 2 {
-        // Migration 1 → 2: replace idx_albums_title with idx_albums_artist_year
-        conn.execute("DROP INDEX IF EXISTS idx_albums_title", [])
-            .map_err(|e| e.to_string())?;
+        // Migration 1 → 2: ensure idx_albums_artist_year exists.
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_albums_artist_year ON albums (artist, year)",
             [],
         )
         .map_err(|e| e.to_string())?;
-        upsert_meta(conn, META_KEY_SCHEMA_VERSION, "2")?;
+        version = 2;
     }
+
+    // Always record the current schema version so new DBs and fully-migrated
+    // DBs both end up with an accurate value.
+    upsert_meta(conn, META_KEY_SCHEMA_VERSION, &version.to_string())?;
 
     Ok(())
 }
