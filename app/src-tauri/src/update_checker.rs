@@ -1,6 +1,7 @@
 use reqwest::header::{ACCEPT, USER_AGENT};
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 const GITHUB_RELEASES_LATEST_API_URL: &str =
     "https://api.github.com/repos/ayllon/VinylVault/releases/latest";
@@ -72,7 +73,12 @@ fn build_update_info(
 }
 
 pub async fn fetch_update_info(current_version: &Version) -> Result<Option<UpdateInfo>, String> {
-    let release = reqwest::Client::new()
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to build GitHub update client: {}", e))?;
+
+    let release = client
         .get(GITHUB_RELEASES_LATEST_API_URL)
         .header(ACCEPT, GITHUB_API_ACCEPT)
         .header(USER_AGENT, GITHUB_USER_AGENT)
