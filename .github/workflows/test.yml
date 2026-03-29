@@ -117,6 +117,10 @@ jobs:
         working-directory: app
         run: npx tsc -b --noEmit
 
+      - name: Run frontend tests
+        working-directory: app
+        run: npm test
+
   sonarcloud:
     name: Test & Analyze
     runs-on: ubuntu-latest
@@ -136,6 +140,11 @@ jobs:
           override: true
           cache: false
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.22.0'
+
       - name: Cache Cargo
         uses: actions/cache@v5
         with:
@@ -147,6 +156,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-sonar-
             ${{ runner.os }}-cargo-
+
+      - name: Cache Node modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            app/node_modules
+          key: ${{ runner.os }}-node-sonar-${{ hashFiles('app/package.json', 'app/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-sonar-
+            ${{ runner.os }}-node-
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm install
 
       - name: Install system dependencies
         run: |
@@ -161,6 +184,10 @@ jobs:
         run: |
           mkdir -p coverage
           cargo llvm-cov --workspace --all-features --lcov --output-path coverage/lcov.info
+
+      - name: Generate frontend coverage (LCOV)
+        working-directory: app
+        run: npm test
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v7.0.0
