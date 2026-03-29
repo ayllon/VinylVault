@@ -149,6 +149,7 @@ function RecordForm({
         <label>{t("fields.songs")}</label>
         <textarea
           value={currentRecord?.tracks || ""}
+          spellCheck={false}
           onChange={(e) =>
             currentRecord
               ? onRecordChange({
@@ -165,6 +166,7 @@ function RecordForm({
         <label>{t("fields.credits")}</label>
         <textarea
           value={currentRecord?.credits || ""}
+          spellCheck={false}
           onChange={(e) =>
             currentRecord
               ? onRecordChange({
