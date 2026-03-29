@@ -29,6 +29,7 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
   const { t } = useTranslation();
   const [contextMenu, setContextMenu] = useState<CoverContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const lookupSeqRef = useRef(0);
   const [coverImportingSuffix, setCoverImportingSuffix] = useState<CoverSuffix | null>(null);
   const [coverLookup, setCoverLookup] = useState<CoverLookupState>({
     isOpen: false,
@@ -184,17 +185,25 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
       return;
     }
 
+    const recordId = currentRecord.id;
+
     try {
       await invoke("delete_cover_for_record", {
-        recordId: currentRecord.id,
+        recordId,
         suffix,
       });
 
-      if (suffix === "cd") {
-        setCurrentRecord({ ...currentRecord, cd_cover_path: null });
-      } else {
-        setCurrentRecord({ ...currentRecord, lp_cover_path: null });
-      }
+      setCurrentRecord((previousRecord) => {
+        if (previousRecord?.id !== recordId) {
+          return previousRecord;
+        }
+
+        if (suffix === "cd") {
+          return { ...previousRecord, cd_cover_path: null };
+        }
+
+        return { ...previousRecord, lp_cover_path: null };
+      });
     } catch (error) {
       console.error("Failed to delete cover:", error);
       alert(t("cover_delete_error", { type: suffix, error: String(error) }));
@@ -208,6 +217,8 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
       setContextMenu(null);
       return;
     }
+
+    const lookupSeq = ++lookupSeqRef.current;
 
     setContextMenu(null);
     setCoverLookup({
@@ -227,6 +238,10 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
         country: currentRecord.country,
       });
 
+      if (lookupSeq !== lookupSeqRef.current) {
+        return;
+      }
+
       setCoverLookup({
         isOpen: true,
         suffix,
@@ -235,6 +250,10 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
         candidates,
       });
     } catch (error) {
+      if (lookupSeq !== lookupSeqRef.current) {
+        return;
+      }
+
       console.error("Failed to search for cover candidates:", error);
       setCoverLookup({
         isOpen: true,
@@ -247,6 +266,8 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
   }
 
   function closeCoverLookup() {
+    lookupSeqRef.current += 1;
+
     setCoverLookup({
       isOpen: false,
       suffix: null,
@@ -261,22 +282,29 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
       return;
     }
 
+    const recordId = currentRecord.id;
     const selectedSuffix = coverLookup.suffix;
     closeCoverLookup();
     setCoverImportingSuffix(selectedSuffix);
 
     try {
       const newPath = await importCoverFromUrl(
-        currentRecord.id,
+        recordId,
         selectedSuffix,
         candidate.image_url,
       );
 
-      if (selectedSuffix === "cd") {
-        setCurrentRecord({ ...currentRecord, cd_cover_path: newPath });
-      } else {
-        setCurrentRecord({ ...currentRecord, lp_cover_path: newPath });
-      }
+      setCurrentRecord((previousRecord) => {
+        if (previousRecord?.id !== recordId) {
+          return previousRecord;
+        }
+
+        if (selectedSuffix === "cd") {
+          return { ...previousRecord, cd_cover_path: newPath };
+        }
+
+        return { ...previousRecord, lp_cover_path: newPath };
+      });
     } catch (error) {
       console.error("Failed to import selected cover:", error);
       alert(t("cover_lookup.import_error", { error: String(error) }));

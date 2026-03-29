@@ -21,7 +21,7 @@ export function useSearch() {
       setTitles(data.titles);
       setFormats(data.formatos);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to load groups, titles, and formats", e);
     }
   }, []);
 

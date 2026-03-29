@@ -13,7 +13,7 @@ export function useRecord() {
       const total = await invoke<number>("get_total_records");
       setTotalRecords(total);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to load total record count", e);
     }
   }, []);
 
@@ -26,7 +26,7 @@ export function useRecord() {
       }
     } catch (e) {
       if (seq === loadSeqRef.current) {
-        console.error(e);
+        console.error("Failed to load record", e);
         setCurrentRecord(null);
       }
     }
