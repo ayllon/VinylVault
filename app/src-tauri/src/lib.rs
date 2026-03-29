@@ -74,7 +74,7 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
         .prepare(
             "SELECT rowid, artist, title, format, year, style, country, tracks, credits, edition, notes, cd_cover_path, lp_cover_path 
             FROM albums
-            ORDER BY COALESCE(artist, ''), COALESCE(year, ''), rowid
+            ORDER BY artist, year, rowid
             LIMIT 1 OFFSET ?",
         )
         .map_err(|e| e.to_string())?;
@@ -156,7 +156,7 @@ fn find_record_offset_impl(
                 artist,
                 title,
                 ROW_NUMBER() OVER (
-                    ORDER BY COALESCE(artist, ''), COALESCE(year, ''), rowid
+                    ORDER BY artist, year, rowid
                 ) - 1 AS offset
             FROM albums
         )
@@ -189,7 +189,7 @@ fn add_record_impl(conn: &Connection) -> Result<u32, String> {
             "WITH ordered AS (
                 SELECT rowid,
                        ROW_NUMBER() OVER (
-                           ORDER BY COALESCE(artist, ''), COALESCE(year, ''), rowid
+                           ORDER BY artist, year, rowid
                        ) - 1 AS offset
                 FROM albums
             )
