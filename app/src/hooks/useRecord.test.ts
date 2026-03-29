@@ -15,13 +15,13 @@ describe('useRecord', () => {
       // First call returns a promise we control; second call resolves immediately
       invokeMock
         .mockImplementationOnce(
-          (_cmd: string) =>
+          () =>
             new Promise((resolve) => {
               resolveFirst = resolve
             }),
         )
         .mockImplementationOnce(
-          (_cmd: string) =>
+          () =>
             new Promise((resolve) => {
               resolveSecond = resolve
             }),
