@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import App from './App'
 import { buildGoogleCoverSearchUrl, getImageSrc } from './appUtils'
+import i18n from './i18n/config'
 
 describe('App utilities', () => {
   it('returns an empty image source when no path is provided', () => {
@@ -37,8 +38,6 @@ describe('App', () => {
   it('renders without crashing', async () => {
     render(<App />)
 
-    expect(
-      await screen.findByText('The database is empty. Import an MDB file to get started.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(i18n.t('empty_db'))).toBeInTheDocument()
   })
 })
