@@ -187,7 +187,7 @@ pub async fn fetch_cover_image_bytes(image_url: &str) -> Result<Vec<u8>, String>
 
 fn build_http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
-    .timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(15))
         .user_agent(VINYLVAULT_USER_AGENT)
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))
