@@ -8,16 +8,7 @@
   "permissions": [
     "core:default",
     "dialog:default",
-    "fs:default",
     "opener:default",
-    "clipboard-manager:allow-write-text",
-    {
-      "identifier": "fs:allow-read",
-      "allow": [
-        {
-          "path": "**"
-        }
-      ]
-    }
+    "clipboard-manager:allow-write-text"
   ]
 }
