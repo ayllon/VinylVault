@@ -1,5 +1,6 @@
 mod cover_lookup;
 mod cover_storage;
+mod db;
 mod mdb_import;
 mod sanitize;
 mod update_checker;
@@ -20,9 +21,6 @@ use crate::cover_storage::CoverStorage;
 use crate::update_checker::UpdateInfo;
 use crate::window_sizing::apply_adaptive_window_size;
 
-const DB_SCHEMA_VERSION: &str = "1";
-const META_KEY_SCHEMA_VERSION: &str = "schema_version";
-const META_KEY_SOURCE_MDB_PATH: &str = "source_mdb_path";
 const DEBUG_IMPORT_TEMP_DIR: &str = "vinylvault-mdb-import-debug";
 
 #[derive(Clone)]
@@ -62,134 +60,6 @@ pub struct GroupsAndTitles {
     pub formatos: Vec<String>,
 }
 
-// Helper: resolve DB path from env or default
-fn resolve_db_path() -> Result<PathBuf, String> {
-    if let Ok(path) = env::var("VINYLVAULT_DB_PATH") {
-        Ok(PathBuf::from(path))
-    } else {
-        let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-        Ok(home.join("discos").join("discos.sqlite"))
-    }
-}
-
-// Helper: initialize DB if needed (create dir and schema)
-fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
-    let dir = db_path
-        .parent()
-        .ok_or("Invalid database path: no parent directory")?;
-
-    std::fs::create_dir_all(dir).map_err(|e| format!("Failed to create DB directory: {}", e))?;
-
-    // Try to open; if it doesn't exist, SQLite will create it
-    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-
-    // Check if table exists; if not, create schema
-    let table_exists: bool = conn
-        .query_row(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='albums'",
-            [],
-            |_| Ok(true),
-        )
-        .unwrap_or(false);
-
-    if !table_exists {
-        conn.execute(
-            "CREATE TABLE albums (
-                artist TEXT,
-                title TEXT,
-                format TEXT,
-                year TEXT,
-                style TEXT,
-                country TEXT,
-                tracks TEXT,
-                credits TEXT,
-                edition TEXT,
-                notes TEXT,
-                cd_cover_path TEXT,
-                lp_cover_path TEXT
-            )",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-
-        conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
-            .map_err(|e| e.to_string())?;
-
-        conn.execute("CREATE INDEX idx_albums_title ON albums (title)", [])
-            .map_err(|e| e.to_string())?;
-    }
-
-    ensure_meta_schema(&conn)?;
-    set_meta_if_missing(&conn, META_KEY_SCHEMA_VERSION, DB_SCHEMA_VERSION)?;
-
-    Ok(())
-}
-
-fn ensure_meta_schema(conn: &Connection) -> Result<(), String> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS meta (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-fn set_meta_if_missing(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
-    conn.execute(
-        "INSERT OR IGNORE INTO meta (key, value) VALUES (?1, ?2)",
-        rusqlite::params![key, value],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-fn upsert_meta(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
-    conn.execute(
-        "INSERT INTO meta (key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        rusqlite::params![key, value],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-// Helper: initialize schema in a test connection (for tests)
-#[cfg(test)]
-fn init_test_schema(conn: &Connection) -> Result<(), String> {
-    conn.execute(
-        "CREATE TABLE albums (
-            artist TEXT,
-            title TEXT,
-            format TEXT,
-            year TEXT,
-            style TEXT,
-            country TEXT,
-            tracks TEXT,
-            credits TEXT,
-            edition TEXT,
-            notes TEXT,
-            cd_cover_path TEXT,
-            lp_cover_path TEXT
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
-
-    conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
-        .map_err(|e| e.to_string())?;
-
-    conn.execute("CREATE INDEX idx_albums_title ON albums (title)", [])
-        .map_err(|e| e.to_string())?;
-
-    ensure_meta_schema(conn)?;
-    set_meta_if_missing(conn, META_KEY_SCHEMA_VERSION, DB_SCHEMA_VERSION)?;
-
-    Ok(())
-}
-
 // Implementation functions (testable, take &Connection)
 
 fn get_total_records_impl(conn: &Connection) -> Result<u32, String> {
@@ -204,7 +74,7 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
         .prepare(
             "SELECT rowid, artist, title, format, year, style, country, tracks, credits, edition, notes, cd_cover_path, lp_cover_path 
             FROM albums
-            ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
+            ORDER BY COALESCE(artist, ''), COALESCE(year, ''), rowid
             LIMIT 1 OFFSET ?",
         )
         .map_err(|e| e.to_string())?;
@@ -286,7 +156,7 @@ fn find_record_offset_impl(
                 artist,
                 title,
                 ROW_NUMBER() OVER (
-                    ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
+                    ORDER BY COALESCE(artist, ''), COALESCE(year, ''), rowid
                 ) - 1 AS offset
             FROM albums
         )
@@ -319,7 +189,7 @@ fn add_record_impl(conn: &Connection) -> Result<u32, String> {
             "WITH ordered AS (
                 SELECT rowid,
                        ROW_NUMBER() OVER (
-                           ORDER BY COALESCE(artist, ''), COALESCE(title, ''), rowid
+                           ORDER BY COALESCE(artist, ''), COALESCE(year, ''), rowid
                        ) - 1 AS offset
                 FROM albums
             )
@@ -678,9 +548,9 @@ async fn import_mdb(
             },
         )?;
 
-        upsert_meta(
+        db::upsert_meta(
             &conn,
-            META_KEY_SOURCE_MDB_PATH,
+            db::META_KEY_SOURCE_MDB_PATH,
             mdb_path_buf.to_string_lossy().as_ref(),
         )?;
 
@@ -720,7 +590,7 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
     let db_path = tmp_root.join("debug.sqlite");
     let cover_storage = CoverStorage::new(&db_path)?;
 
-    init_db_if_needed(&db_path)?;
+    db::init_db_if_needed(&db_path)?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     log::info!("debug import temp root: {}", tmp_root.display());
@@ -737,9 +607,9 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
         },
     )?;
 
-    upsert_meta(
+    db::upsert_meta(
         &conn,
-        META_KEY_SOURCE_MDB_PATH,
+        db::META_KEY_SOURCE_MDB_PATH,
         mdb_path.to_string_lossy().as_ref(),
     )?;
 
@@ -749,8 +619,8 @@ pub fn run_debug_import_to_temp(mdb_path: &Path) -> Result<usize, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let db_path = resolve_db_path().expect("Failed to resolve database path");
-    init_db_if_needed(&db_path).expect("Failed to initialize database");
+    let db_path = db::resolve_db_path().expect("Failed to resolve database path");
+    db::init_db_if_needed(&db_path).expect("Failed to initialize database");
     let cover_storage = CoverStorage::new(&db_path).expect("Failed to initialize cover storage");
 
     let manager = SqliteConnectionManager::file(&db_path);
@@ -831,7 +701,7 @@ mod tests {
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open(":memory:").expect("Failed to create in-memory DB");
-        init_test_schema(&conn).expect("Failed to initialize test schema");
+        db::init_test_schema(&conn).expect("Failed to initialize test schema");
         conn
     }
 

@@ -240,7 +240,7 @@ fn read_access_objects_cfb(reader: &mut PageReader) -> Result<Vec<u8>, FileError
         rows.push((id, data));
     }
 
-    // Sort by ID, skip row 0 (metadata), concatenate
+    //  ID, skip row 0 (metadata), concatenate
     rows.sort_by_key(|(id, _)| *id);
 
     let mut cfb_bytes = Vec::new();
