@@ -119,17 +119,25 @@ export function useCover({ currentRecord, setCurrentRecord }: Readonly<UseCoverP
       return;
     }
 
+    const recordId = currentRecord.id;
+
     try {
       const newPath = await invoke<string>("save_cover_paste_from_clipboard", {
-        recordId: currentRecord.id,
+        recordId,
         suffix,
       });
 
-      if (suffix === "cd") {
-        setCurrentRecord({ ...currentRecord, cd_cover_path: newPath });
-      } else {
-        setCurrentRecord({ ...currentRecord, lp_cover_path: newPath });
-      }
+      setCurrentRecord((previousRecord) => {
+        if (previousRecord?.id !== recordId) {
+          return previousRecord;
+        }
+
+        if (suffix === "cd") {
+          return { ...previousRecord, cd_cover_path: newPath };
+        }
+
+        return { ...previousRecord, lp_cover_path: newPath };
+      });
     } catch (error) {
       console.error("Failed to read clipboard:", error);
       alert(t("cover_paste_error", { type: suffix }));
