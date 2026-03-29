@@ -28,7 +28,7 @@ function CoverPanel({
   onCopyToClipboard,
   onCopyCoverPath,
   onDeleteCover,
-}: CoverPanelProps) {
+}: Readonly<CoverPanelProps>) {
   const { t } = useTranslation();
 
   return (

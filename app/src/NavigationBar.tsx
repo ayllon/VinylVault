@@ -24,6 +24,8 @@ interface NavigationBarProps {
   onOpenReleasePage: () => Promise<void> | void;
   onAdd: () => Promise<void> | void;
   onDelete: () => void;
+  showSearchControls?: boolean;
+  showBottomBar?: boolean;
 }
 
 function NavigationBar({
@@ -47,11 +49,14 @@ function NavigationBar({
   onOpenReleasePage,
   onAdd,
   onDelete,
+  showSearchControls = true,
+  showBottomBar = true,
 }: NavigationBarProps) {
   const { t } = useTranslation();
 
   return (
     <>
+      {showSearchControls && (
       <div className="action-bar">
         <div className="search-boxes">
           <div className="search-box" style={{ flex: 2 }}>
@@ -123,7 +128,9 @@ function NavigationBar({
           </div>
         </div>
       </div>
+      )}
 
+      {showBottomBar && (
       <div className="nav-bar-bottom">
         <span>{t("record.singular")}:</span>
         <button onClick={onFirstRecord} disabled={recordIndex === 0}>
@@ -172,6 +179,7 @@ function NavigationBar({
           </button>
         </div>
       </div>
+      )}
     </>
   );
 }

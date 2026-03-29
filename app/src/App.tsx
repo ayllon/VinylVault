@@ -692,8 +692,33 @@ function App() {
           onOpenReleasePage={handleOpenReleasePage}
           onAdd={handleAdd}
           onDelete={handleDelete}
+          showBottomBar={false}
         />
       </div>
+
+      <NavigationBar
+        groups={groups}
+        titles={titles}
+        searchArtist={searchArtist}
+        searchAlbum={searchAlbum}
+        selectStyles={SELECT_STYLES}
+        selectTheme={SELECT_THEME}
+        recordIndex={recordIndex}
+        totalRecords={totalRecords}
+        updateInfo={updateInfo}
+        onSearchArtistChange={setSearchArtist}
+        onSearchAlbumChange={setSearchAlbum}
+        onSearchArtist={(value) => handleSearchClick("artist", value)}
+        onSearchAlbum={(value) => handleSearchClick("title", value)}
+        onFirstRecord={() => setRecordIndex(0)}
+        onPreviousRecord={() => setRecordIndex(recordIndex - 1)}
+        onNextRecord={() => setRecordIndex(recordIndex + 1)}
+        onLastRecord={() => setRecordIndex(totalRecords - 1)}
+        onOpenReleasePage={handleOpenReleasePage}
+        onAdd={handleAdd}
+        onDelete={handleDelete}
+        showSearchControls={false}
+      />
 
       {deleteTargetId !== null && (
         <div

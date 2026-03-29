@@ -21,7 +21,7 @@ function RecordForm({
   onRecordChange,
   onSave,
   onFormatChange,
-}: RecordFormProps) {
+}: Readonly<RecordFormProps>) {
   const { t } = useTranslation();
 
   return (
