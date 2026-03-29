@@ -162,7 +162,7 @@ jobs:
         with:
           path: |
             app/node_modules
-          key: ${{ runner.os }}-node-sonar-${{ hashFiles('app/package.json') }}
+          key: ${{ runner.os }}-node-sonar-${{ hashFiles('app/package.json', 'app/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-sonar-
             ${{ runner.os }}-node-
