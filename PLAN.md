@@ -74,6 +74,8 @@ Install Vitest + `@testing-library/react` + `jsdom`. Add a `"test"` script to
 
 ## Phase 3 — Code Organization
 
+Status: Done
+
 Depends on Phase 2 (test safety net before refactoring).
 
 ### 8. Extract sub-components from App.tsx
