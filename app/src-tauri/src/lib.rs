@@ -734,21 +734,21 @@ mod tests {
     }
 
     #[test]
-    fn test_get_record_uses_lexicographical_order() {
+    fn test_get_record_uses_artist_year_order() {
         let conn = setup_test_db();
         conn.execute(
-            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
-            rusqlite::params!["ZZZ Group", "Alpha"],
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["ZZZ Group", "Old Album", "1990"],
         )
         .expect("Insert failed");
         conn.execute(
-            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
-            rusqlite::params!["AAA Group", "Zulu"],
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["AAA Group", "Late Album", "2005"],
         )
         .expect("Insert failed");
         conn.execute(
-            "INSERT INTO albums (artist, title) VALUES (?1, ?2)",
-            rusqlite::params!["AAA Group", "Beta"],
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["AAA Group", "Early Album", "1998"],
         )
         .expect("Insert failed");
 
@@ -756,12 +756,13 @@ mod tests {
         let second = get_record_impl(&conn, 1).expect("Get failed");
         let third = get_record_impl(&conn, 2).expect("Get failed");
 
+        // Sorted by artist asc, then year asc
         assert_eq!(first.artist, Some("AAA Group".to_string()));
-        assert_eq!(first.title, Some("Beta".to_string()));
+        assert_eq!(first.year, Some("1998".to_string()));
         assert_eq!(second.artist, Some("AAA Group".to_string()));
-        assert_eq!(second.title, Some("Zulu".to_string()));
+        assert_eq!(second.year, Some("2005".to_string()));
         assert_eq!(third.artist, Some("ZZZ Group".to_string()));
-        assert_eq!(third.title, Some("Alpha".to_string()));
+        assert_eq!(third.year, Some("1990".to_string()));
     }
 
     #[test]

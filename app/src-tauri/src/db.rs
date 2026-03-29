@@ -58,8 +58,11 @@ pub fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
         conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
             .map_err(|e| e.to_string())?;
 
-        conn.execute("CREATE INDEX idx_albums_artist_year ON albums (artist, year)", [])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "CREATE INDEX idx_albums_artist_year ON albums (artist, year)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     ensure_meta_schema(&conn)?;
@@ -150,8 +153,11 @@ pub fn init_test_schema(conn: &Connection) -> Result<(), String> {
     conn.execute("CREATE INDEX idx_albums_artist ON albums (artist)", [])
         .map_err(|e| e.to_string())?;
 
-    conn.execute("CREATE INDEX idx_albums_artist_year ON albums (artist, year)", [])
-        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE INDEX idx_albums_artist_year ON albums (artist, year)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
 
     ensure_meta_schema(conn)?;
     set_meta_if_missing(conn, META_KEY_SCHEMA_VERSION, DB_SCHEMA_VERSION)?;
