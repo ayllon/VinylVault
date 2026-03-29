@@ -28,9 +28,5 @@ export function buildGoogleCoverSearchUrl(record: RecordLike | null): string | n
 
   const query = [...queryTerms, 'album cover'].join(' ')
 
-  if (!query) {
-    return null
-  }
-
   return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`
 }

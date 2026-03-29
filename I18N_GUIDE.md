@@ -83,6 +83,7 @@ Keys are organized hierarchically using dot notation for better organization:
   - `actions.*` — Buttons and user actions
   - `cover_lookup.*` — Online cover lookup dialog
   - `updates.*` — Update notifications
+  - `errors.*` — Error messages (e.g., record not found, unexpected title)
   - `import_*` — Import-related messages and errors
 
 For a complete list of available keys, see [es.json](app/src/i18n/es.json) and [en.json](app/src/i18n/en.json).
