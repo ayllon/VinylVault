@@ -15,7 +15,10 @@
       "identifier": "fs:allow-read",
       "allow": [
         {
-          "path": "**"
+          "path": "$HOME/discos/**"
+        },
+        {
+          "path": "$DOCUMENT/**"
         }
       ]
     }

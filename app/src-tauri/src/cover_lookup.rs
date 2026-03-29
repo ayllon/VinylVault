@@ -2,6 +2,7 @@ use futures::stream::{self, StreamExt};
 use reqwest::header::ACCEPT;
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 const MUSICBRAINZ_SEARCH_URL: &str = "https://musicbrainz.org/ws/2/release";
 const COVER_ART_ARCHIVE_RELEASE_URL: &str = "https://coverartarchive.org/release";
@@ -186,6 +187,7 @@ pub async fn fetch_cover_image_bytes(image_url: &str) -> Result<Vec<u8>, String>
 
 fn build_http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
+    .timeout(Duration::from_secs(15))
         .user_agent(VINYLVAULT_USER_AGENT)
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))

@@ -11,6 +11,8 @@ a single-user app.
 
 ## Phase 1 — Quick Wins
 
+Status: Done
+
 All independent, can be done in any order.
 
 ### 1. Fix hardcoded Spanish string
@@ -45,6 +47,8 @@ handles user-chosen paths; the broad read scope isn't needed.
 ---
 
 ## Phase 2 — Safety Nets
+
+Status: Done
 
 Can be done in parallel with Phase 1.
 
