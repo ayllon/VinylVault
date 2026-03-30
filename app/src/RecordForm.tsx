@@ -1,28 +1,32 @@
-import Select from "react-select";
-import type { Theme, StylesConfig } from "react-select";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import type { RecordData, SelectOption } from "./types";
+import type { RecordData } from "./types";
 
 interface RecordFormProps {
   currentRecord: RecordData | null;
-  formats: string[];
-  selectStyles: StylesConfig<SelectOption, false>;
-  selectTheme: (theme: Theme) => Theme;
   onRecordChange: (nextRecord: RecordData) => void;
-  onSave: () => Promise<void> | void;
-  onFormatChange: (nextFormat: string) => void;
+  onSave: (record?: RecordData) => Promise<void> | void;
 }
 
 function RecordForm({
   currentRecord,
-  formats,
-  selectStyles,
-  selectTheme,
   onRecordChange,
   onSave,
-  onFormatChange,
 }: Readonly<RecordFormProps>) {
   const { t } = useTranslation();
+  const [formatMenuOpen, setFormatMenuOpen] = useState(false);
+  const formatRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!formatMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (formatRef.current && !formatRef.current.contains(e.target as Node)) {
+        setFormatMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [formatMenuOpen]);
 
   return (
     <>
@@ -36,7 +40,7 @@ function RecordForm({
               ? onRecordChange({ ...currentRecord, artist: e.target.value })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         />
       </div>
       <div className="field-group country">
@@ -49,7 +53,7 @@ function RecordForm({
               ? onRecordChange({ ...currentRecord, country: e.target.value })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         />
       </div>
 
@@ -63,7 +67,7 @@ function RecordForm({
               ? onRecordChange({ ...currentRecord, title: e.target.value })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         />
       </div>
       <div className="field-group year">
@@ -76,7 +80,7 @@ function RecordForm({
               ? onRecordChange({ ...currentRecord, year: e.target.value })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         />
       </div>
       <div className="field-group style">
@@ -89,32 +93,50 @@ function RecordForm({
               ? onRecordChange({ ...currentRecord, style: e.target.value })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         />
       </div>
       <div className="field-group format">
         <label>{t("fields.format")}:</label>
-        <Select
-          options={formats.map((f) => ({ value: f, label: f }))}
-          value={
-            currentRecord?.format
-              ? { value: currentRecord.format, label: currentRecord.format }
-              : null
-          }
-          onChange={(option) => {
-            if (currentRecord) {
-              onFormatChange(option?.value || "");
+        <div className="format-input-wrapper" ref={formatRef}>
+          <input
+            type="text"
+            value={currentRecord?.format || ""}
+            onChange={(e) =>
+              currentRecord
+                ? onRecordChange({ ...currentRecord, format: e.target.value })
+                : null
             }
-          }}
-          isSearchable
-          placeholder={t("search.format_placeholder")}
-          styles={selectStyles}
-          menuPortalTarget={document.body}
-          menuPosition="fixed"
-          menuPlacement="auto"
-          menuShouldBlockScroll={true}
-          theme={selectTheme}
-        />
+            onBlur={() => onSave()}
+          />
+          <button
+            type="button"
+            className="format-dropdown-btn"
+            tabIndex={-1}
+            onClick={() => setFormatMenuOpen((o) => !o)}
+          >
+            ▾
+          </button>
+          {formatMenuOpen && (
+            <ul className="format-dropdown-menu">
+              {[t("formats.cd"), t("formats.vinyl")].map((opt) => (
+                <li
+                  key={opt}
+                  onMouseDown={() => {
+                    if (currentRecord) {
+                      const updated = { ...currentRecord, format: opt };
+                      onRecordChange(updated);
+                      onSave(updated);
+                    }
+                    setFormatMenuOpen(false);
+                  }}
+                >
+                  {opt}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="field-group edition">
@@ -127,7 +149,7 @@ function RecordForm({
               ? onRecordChange({ ...currentRecord, edition: e.target.value })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         />
       </div>
 
@@ -141,7 +163,7 @@ function RecordForm({
               ? onRecordChange({ ...currentRecord, notes: e.target.value })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         />
       </div>
 
@@ -158,7 +180,7 @@ function RecordForm({
               })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         ></textarea>
       </div>
 
@@ -175,7 +197,7 @@ function RecordForm({
               })
               : null
           }
-          onBlur={onSave}
+          onBlur={() => onSave()}
         ></textarea>
       </div>
     </>

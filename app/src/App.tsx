@@ -13,7 +13,7 @@ import { useCover } from "./hooks/useCover";
 import { useImport } from "./hooks/useImport";
 import { useRecord } from "./hooks/useRecord";
 import { useSearch } from "./hooks/useSearch";
-import type { SelectOption, UpdateInfo } from "./types";
+import type { RecordData, SelectOption, UpdateInfo } from "./types";
 import "./App.css";
 
 const SELECT_STYLES: StylesConfig<SelectOption, false> = {
@@ -74,7 +74,6 @@ function App() {
     setSearchAlbum,
     groups,
     titles,
-    formats,
     loadComboboxes,
     findRecordOffset,
   } = useSearch();
@@ -215,30 +214,15 @@ function App() {
   }
 
   // Silent autosaver function
-  async function handleSave() {
-    if (!currentRecord) return;
+  async function handleSave(record?: RecordData) {
+    const toSave = record ?? currentRecord;
+    if (!toSave) return;
     try {
-      await invoke("update_record", { record: currentRecord });
+      await invoke("update_record", { record: toSave });
       await loadComboboxes();
     } catch (e) {
       console.error("Auto-save failed:", e);
     }
-  }
-
-  function handleFormatChange(nextFormat: string) {
-    if (!currentRecord) {
-      return;
-    }
-
-    const updated = {
-      ...currentRecord,
-      format: nextFormat,
-    };
-
-    setCurrentRecord(updated);
-    invoke("update_record", { record: updated })
-      .then(() => loadComboboxes())
-      .catch((e) => console.error("Auto-save failed:", e));
   }
 
   async function handleAdd() {
@@ -353,12 +337,8 @@ function App() {
       <div className="form-body">
         <RecordForm
           currentRecord={currentRecord}
-          formats={formats}
-          selectStyles={SELECT_STYLES}
-          selectTheme={SELECT_THEME}
           onRecordChange={(nextRecord) => setCurrentRecord(nextRecord)}
           onSave={handleSave}
-          onFormatChange={handleFormatChange}
         />
 
         <CoverPanel
