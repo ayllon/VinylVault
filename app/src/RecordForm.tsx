@@ -16,6 +16,7 @@ function RecordForm({
   const { t } = useTranslation();
   const [formatMenuOpen, setFormatMenuOpen] = useState(false);
   const formatRef = useRef<HTMLDivElement>(null);
+  const formatMenuId = "format-dropdown-menu";
 
   useEffect(() => {
     if (!formatMenuOpen) return;
@@ -24,8 +25,15 @@ function RecordForm({
         setFormatMenuOpen(false);
       }
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setFormatMenuOpen(false);
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [formatMenuOpen]);
 
   return (
@@ -112,23 +120,44 @@ function RecordForm({
           <button
             type="button"
             className="format-dropdown-btn"
-            tabIndex={-1}
+            aria-haspopup="listbox"
+            aria-expanded={formatMenuOpen}
+            aria-controls={formatMenuId}
             onClick={() => setFormatMenuOpen((o) => !o)}
           >
             ▾
           </button>
           {formatMenuOpen && (
-            <ul className="format-dropdown-menu">
+            <ul
+              id={formatMenuId}
+              className="format-dropdown-menu"
+              role="listbox"
+            >
               {[t("formats.cd"), t("formats.vinyl")].map((opt) => (
                 <li
                   key={opt}
-                  onMouseDown={() => {
+                  role="option"
+                  aria-selected={currentRecord?.format === opt}
+                  tabIndex={0}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
                     if (currentRecord) {
                       const updated = { ...currentRecord, format: opt };
                       onRecordChange(updated);
                       onSave(updated);
                     }
                     setFormatMenuOpen(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      if (currentRecord) {
+                        const updated = { ...currentRecord, format: opt };
+                        onRecordChange(updated);
+                        onSave(updated);
+                      }
+                      setFormatMenuOpen(false);
+                    }
                   }}
                 >
                   {opt}
