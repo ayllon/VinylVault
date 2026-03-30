@@ -2,6 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useTranslation } from "react-i18next";
 import type { CoverCandidate, CoverSuffix } from "./coverLookup";
+import googleLogoUrl from "./assets/google-logo.svg";
 
 interface CoverLookupDialogProps {
   isOpen: boolean;
@@ -86,6 +87,7 @@ function CoverLookupDialog({
                   }),
                 )}
               >
+                <img src={googleLogoUrl} alt="" width={18} height={18} />
                 {t("cover_lookup.search_with_google")}
               </button>
             )}
@@ -135,6 +137,9 @@ function CoverLookupDialog({
             ))}
             {googleSearchUrl && (
               <article className="cover-lookup-card cover-lookup-card-google" key="google-search-option">
+                <div className="cover-lookup-card-google-hero">
+                  <img src={googleLogoUrl} alt="Google" width={40} height={40} />
+                </div>
                 <div className="cover-lookup-meta">
                   <strong>{t("cover_lookup.search_with_google")}</strong>
                   <span>{t("cover_lookup.search_with_google_hint")}</span>
@@ -151,6 +156,7 @@ function CoverLookupDialog({
                       }),
                     )}
                   >
+                    <img src={googleLogoUrl} alt="" width={16} height={16} />
                     {t("cover_lookup.search_with_google")}
                   </button>
                 </div>

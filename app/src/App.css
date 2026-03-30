@@ -760,14 +760,24 @@ body {
 }
 
 .cover-lookup-google-link {
-    border: none;
-    background: none;
-    color: var(--color-link);
-    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 9px 16px;
+    border: 1px solid #dadce0;
+    border-radius: 24px;
+    background: #ffffff;
+    color: #3c4043;
     font-size: 14px;
-    padding: 8px 0 0;
+    font-weight: 500;
     cursor: pointer;
-    text-decoration: underline;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+
+.cover-lookup-google-link:hover {
+    background: #f8f9fa;
+    box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
 }
 
 .cover-lookup-error {
@@ -794,8 +804,16 @@ body {
 }
 
 .cover-lookup-card-google {
-    border-style: dashed;
-    background: #eff6ff;
+    border-color: #a8c7fa;
+    background: #e8f0fe;
+}
+
+.cover-lookup-card-google-hero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    background: linear-gradient(135deg, #d2e3fc 0%, #e8f0fe 100%);
 }
 
 .cover-lookup-image {
@@ -855,11 +873,14 @@ body {
 }
 
 .cover-lookup-actions .cover-lookup-google-button {
-    background: #1d4ed8;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #4285f4;
 }
 
 .cover-lookup-actions .cover-lookup-google-button:hover {
-    background: #1e40af;
+    background: #3367d6;
 }
 
 .cover-lookup-footer {
