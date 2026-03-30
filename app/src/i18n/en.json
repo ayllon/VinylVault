@@ -36,6 +36,11 @@
     "lp_cover": "LP Cover"
   },
 
+  "formats": {
+    "cd": "CD",
+    "vinyl": "Vinyl"
+  },
+
   "search": {
     "by_group": "Search by group",
     "by_album": "Search by album",

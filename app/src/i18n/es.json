@@ -36,6 +36,11 @@
     "lp_cover": "Portada LP"
   },
 
+  "formats": {
+    "cd": "CD",
+    "vinyl": "Vinilo"
+  },
+
   "search": {
     "by_group": "Buscar por grupo",
     "by_album": "Buscar por disco",
