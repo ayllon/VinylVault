@@ -554,7 +554,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires live network access to MusicBrainz and Cover Art Archive"]
     fn test_search_cover_candidates_hits_remote_services() {
         tauri::async_runtime::block_on(async {
             let candidates = search_cover_candidates(&CoverSearchQuery {
