@@ -42,6 +42,7 @@ function RecordForm({
         <label>{t("fields.group")}:</label>
         <input
           type="text"
+          spellCheck={false}
           value={currentRecord?.artist || ""}
           onChange={(e) =>
             currentRecord
@@ -55,6 +56,7 @@ function RecordForm({
         <label>{t("fields.country")}:</label>
         <input
           type="text"
+          spellCheck={false}
           value={currentRecord?.country || ""}
           onChange={(e) =>
             currentRecord
@@ -69,6 +71,7 @@ function RecordForm({
         <label>{t("fields.album")}:</label>
         <input
           type="text"
+          spellCheck={false}
           value={currentRecord?.title || ""}
           onChange={(e) =>
             currentRecord
@@ -82,6 +85,7 @@ function RecordForm({
         <label>{t("fields.year")}:</label>
         <input
           type="text"
+          spellCheck={false}
           value={currentRecord?.year || ""}
           onChange={(e) =>
             currentRecord
@@ -95,6 +99,7 @@ function RecordForm({
         <label>{t("fields.style")}:</label>
         <input
           type="text"
+          spellCheck={false}
           value={currentRecord?.style || ""}
           onChange={(e) =>
             currentRecord
@@ -109,6 +114,7 @@ function RecordForm({
         <div className="format-input-wrapper" ref={formatRef}>
           <input
             type="text"
+            spellCheck={false}
             value={currentRecord?.format || ""}
             onChange={(e) =>
               currentRecord
@@ -172,6 +178,7 @@ function RecordForm({
         <label>{t("fields.edition")}:</label>
         <input
           type="text"
+          spellCheck={false}
           value={currentRecord?.edition || ""}
           onChange={(e) =>
             currentRecord
@@ -186,6 +193,7 @@ function RecordForm({
         <label>{t("fields.observations")}:</label>
         <input
           type="text"
+          spellCheck={false}
           value={currentRecord?.notes || ""}
           onChange={(e) =>
             currentRecord
