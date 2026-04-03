@@ -42,10 +42,8 @@ fn spanish_char_weight(ch: char) -> (u16, u32) {
 
     let mut base: Option<char> = None;
     for part in ch.to_string().nfd() {
-        if !is_combining_mark(part) {
-            if base.is_none() {
-                base = Some(part);
-            }
+        if !is_combining_mark(part) && base.is_none() {
+            base = Some(part);
         }
     }
 
