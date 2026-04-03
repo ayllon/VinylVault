@@ -35,29 +35,27 @@ fn spanish_primary_weight(base: char) -> Option<u16> {
     }
 }
 
-fn spanish_char_weight(ch: char) -> (u16, u8, u32) {
+fn spanish_char_weight(ch: char) -> (u16, u32) {
     if ch == 'ñ' || ch == 'Ñ' {
-        return (15, 0, 'ñ' as u32);
+        return (15, 'ñ' as u32);
     }
 
-    let mut base = ch;
-    let mut has_diacritic = false;
-    for part in ch.nfd() {
-        if is_combining_mark(part) {
-            has_diacritic = true;
-        } else {
-            base = part;
-            break;
+    let mut base: Option<char> = None;
+    for part in ch.to_string().nfd() {
+        if !is_combining_mark(part) {
+            if base.is_none() {
+                base = Some(part);
+            }
         }
     }
 
+    let base = base.unwrap_or(ch);
     let lower = base.to_lowercase().next().unwrap_or(base);
     if let Some(primary) = spanish_primary_weight(lower) {
-        let accent_rank = if has_diacritic { 1 } else { 0 };
-        return (primary, accent_rank, lower as u32);
+        return (primary, lower as u32);
     }
 
-    (1000, 0, lower as u32)
+    (1000, lower as u32)
 }
 
 pub fn compare_spanish(lhs: &str, rhs: &str) -> Ordering {
@@ -92,7 +90,9 @@ mod tests {
     }
 
     #[test]
-    fn spanish_order_places_accented_after_base() {
+    fn spanish_order_ignores_accent_for_sorting() {
+        assert_eq!(compare_spanish("a", "á"), Ordering::Equal);
+        assert_eq!(compare_spanish("á", "a"), Ordering::Equal);
         assert_eq!(compare_spanish("abeja", "águila"), Ordering::Less);
         assert_eq!(compare_spanish("águila", "azul"), Ordering::Less);
     }

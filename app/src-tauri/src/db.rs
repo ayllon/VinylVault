@@ -15,9 +15,8 @@ const IDX_ARTIST_SPANISH: &str = "idx_albums_artist_spanish";
 const IDX_TITLE_SPANISH: &str = "idx_albums_title_spanish";
 const IDX_ARTIST_YEAR_SPANISH: &str = "idx_albums_artist_year_spanish";
 
-pub fn register_spanish_collation(conn: &Connection) -> Result<(), String> {
+pub fn register_spanish_collation(conn: &Connection) -> rusqlite::Result<()> {
     conn.create_collation("SPANISH", compare_spanish)
-        .map_err(|e| e.to_string())
 }
 
 /// Resolve the database path from the environment or the default location.
@@ -40,7 +39,7 @@ pub fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("Failed to create DB directory: {}", e))?;
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    register_spanish_collation(&conn)?;
+    register_spanish_collation(&conn).map_err(|e| e.to_string())?;
 
     let table_exists: bool = conn
         .query_row(
@@ -71,17 +70,13 @@ pub fn init_db_if_needed(db_path: &Path) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
         conn.execute(
-            &format!(
-                "CREATE INDEX {IDX_ARTIST_SPANISH} ON albums (artist COLLATE SPANISH)"
-            ),
+            &format!("CREATE INDEX {IDX_ARTIST_SPANISH} ON albums (artist COLLATE SPANISH)"),
             [],
         )
         .map_err(|e| e.to_string())?;
 
         conn.execute(
-            &format!(
-                "CREATE INDEX {IDX_TITLE_SPANISH} ON albums (title COLLATE SPANISH)"
-            ),
+            &format!("CREATE INDEX {IDX_TITLE_SPANISH} ON albums (title COLLATE SPANISH)"),
             [],
         )
         .map_err(|e| e.to_string())?;
@@ -172,7 +167,7 @@ pub fn upsert_meta(conn: &Connection, key: &str, value: &str) -> Result<(), Stri
 
 #[cfg(test)]
 pub fn init_test_schema(conn: &Connection) -> Result<(), String> {
-    register_spanish_collation(conn)?;
+    register_spanish_collation(conn).map_err(|e| e.to_string())?;
 
     conn.execute(
         "CREATE TABLE albums (
@@ -194,25 +189,19 @@ pub fn init_test_schema(conn: &Connection) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     conn.execute(
-        &format!(
-            "CREATE INDEX {IDX_ARTIST_SPANISH} ON albums (artist COLLATE SPANISH)"
-        ),
+        &format!("CREATE INDEX {IDX_ARTIST_SPANISH} ON albums (artist COLLATE SPANISH)"),
         [],
     )
     .map_err(|e| e.to_string())?;
 
     conn.execute(
-        &format!(
-            "CREATE INDEX {IDX_TITLE_SPANISH} ON albums (title COLLATE SPANISH)"
-        ),
+        &format!("CREATE INDEX {IDX_TITLE_SPANISH} ON albums (title COLLATE SPANISH)"),
         [],
     )
     .map_err(|e| e.to_string())?;
 
     conn.execute(
-        &format!(
-            "CREATE INDEX {IDX_ARTIST_YEAR_SPANISH} ON albums (artist COLLATE SPANISH, year)"
-        ),
+        &format!("CREATE INDEX {IDX_ARTIST_YEAR_SPANISH} ON albums (artist COLLATE SPANISH, year)"),
         [],
     )
     .map_err(|e| e.to_string())?;

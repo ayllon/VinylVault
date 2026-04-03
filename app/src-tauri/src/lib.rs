@@ -1,6 +1,6 @@
+mod collation;
 mod cover_lookup;
 mod cover_storage;
-mod collation;
 mod db;
 mod mdb_import;
 mod sanitize;
@@ -628,10 +628,8 @@ pub fn run() {
     db::init_db_if_needed(&db_path).expect("Failed to initialize database");
     let cover_storage = CoverStorage::new(&db_path).expect("Failed to initialize cover storage");
 
-    let manager = SqliteConnectionManager::file(&db_path).with_init(|conn| {
-        db::register_spanish_collation(conn)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))))
-    });
+    let manager = SqliteConnectionManager::file(&db_path)
+        .with_init(|conn| db::register_spanish_collation(conn));
     let pool = Pool::new(manager).expect("Failed to create connection pool");
 
     let app_state = AppState {
