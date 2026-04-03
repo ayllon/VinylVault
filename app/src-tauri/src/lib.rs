@@ -104,7 +104,7 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
 
 fn get_groups_and_titles_impl(conn: &Connection) -> Result<GroupsAndTitles, String> {
     let mut groups = Vec::new();
-    let mut stmt = conn.prepare("SELECT DISTINCT artist FROM albums WHERE artist IS NOT NULL AND artist != '' ORDER BY artist COLLATE SPANISH").map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT DISTINCT artist FROM albums WHERE artist IS NOT NULL AND artist != '' ORDER BY artist COLLATE SPANISH, artist").map_err(|e| e.to_string())?;
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows.next().map_err(|e| e.to_string())? {
         if let Ok(g) = row.get::<_, String>(0) {
@@ -113,7 +113,7 @@ fn get_groups_and_titles_impl(conn: &Connection) -> Result<GroupsAndTitles, Stri
     }
 
     let mut titles = Vec::new();
-    let mut stmt2 = conn.prepare("SELECT DISTINCT title FROM albums WHERE title IS NOT NULL AND title != '' ORDER BY title COLLATE SPANISH").map_err(|e| e.to_string())?;
+    let mut stmt2 = conn.prepare("SELECT DISTINCT title FROM albums WHERE title IS NOT NULL AND title != '' ORDER BY title COLLATE SPANISH, title").map_err(|e| e.to_string())?;
     let mut rows2 = stmt2.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows2.next().map_err(|e| e.to_string())? {
         if let Ok(t) = row.get::<_, String>(0) {
@@ -122,7 +122,7 @@ fn get_groups_and_titles_impl(conn: &Connection) -> Result<GroupsAndTitles, Stri
     }
 
     let mut formatos = Vec::new();
-    let mut stmt3 = conn.prepare("SELECT DISTINCT format FROM albums WHERE format IS NOT NULL AND format != '' ORDER BY format COLLATE SPANISH").map_err(|e| e.to_string())?;
+    let mut stmt3 = conn.prepare("SELECT DISTINCT format FROM albums WHERE format IS NOT NULL AND format != '' ORDER BY format COLLATE SPANISH, format").map_err(|e| e.to_string())?;
     let mut rows3 = stmt3.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows3.next().map_err(|e| e.to_string())? {
         if let Ok(f) = row.get::<_, String>(0) {

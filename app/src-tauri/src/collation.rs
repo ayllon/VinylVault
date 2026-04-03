@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::iter::Peekable;
 
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
@@ -48,55 +49,55 @@ fn spanish_char_weight(ch: char) -> (u16, u32) {
     (1000, lower as u32)
 }
 
-fn spanish_sort_units(input: &str) -> Vec<char> {
-    let normalized: Vec<char> = input.nfd().collect();
-    let mut units = Vec::with_capacity(normalized.len());
-    let mut i = 0;
+struct SpanishSortIter<I: Iterator<Item = char>> {
+    inner: Peekable<I>,
+}
 
-    while i < normalized.len() {
-        let ch = normalized[i];
-        if is_combining_mark(ch) {
-            i += 1;
-            continue;
+impl<I: Iterator<Item = char>> SpanishSortIter<I> {
+    fn new(iter: I) -> Self {
+        Self {
+            inner: iter.peekable(),
         }
-
-        let mut j = i + 1;
-        let mut has_tilde = false;
-        while j < normalized.len() && is_combining_mark(normalized[j]) {
-            if normalized[j] == '\u{0303}' {
-                has_tilde = true;
-            }
-            j += 1;
-        }
-
-        if (ch == 'n' || ch == 'N') && has_tilde {
-            units.push('ñ');
-        } else {
-            units.push(ch);
-        }
-
-        i = j;
     }
 
-    units
+    fn next_unit(&mut self) -> Option<char> {
+        while let Some(ch) = self.inner.next() {
+            if is_combining_mark(ch) {
+                continue;
+            }
+
+            let mut has_tilde = false;
+            while let Some(next) = self.inner.peek().copied() {
+                if !is_combining_mark(next) {
+                    break;
+                }
+                if next == '\u{0303}' {
+                    has_tilde = true;
+                }
+                let _ = self.inner.next();
+            }
+
+            if (ch == 'n' || ch == 'N') && has_tilde {
+                return Some('ñ');
+            }
+            return Some(ch);
+        }
+        None
+    }
 }
 
 pub fn compare_spanish(lhs: &str, rhs: &str) -> Ordering {
-    let left = spanish_sort_units(lhs);
-    let right = spanish_sort_units(rhs);
-    let mut li = 0;
-    let mut ri = 0;
+    let mut left = SpanishSortIter::new(lhs.nfd());
+    let mut right = SpanishSortIter::new(rhs.nfd());
 
     loop {
-        match (left.get(li), right.get(ri)) {
+        match (left.next_unit(), right.next_unit()) {
             (Some(a), Some(b)) => {
-                let wa = spanish_char_weight(*a);
-                let wb = spanish_char_weight(*b);
+                let wa = spanish_char_weight(a);
+                let wb = spanish_char_weight(b);
                 if wa != wb {
                     return wa.cmp(&wb);
                 }
-                li += 1;
-                ri += 1;
             }
             (None, Some(_)) => return Ordering::Less,
             (Some(_), None) => return Ordering::Greater,
