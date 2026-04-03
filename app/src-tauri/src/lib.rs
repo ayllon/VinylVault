@@ -1,5 +1,6 @@
 mod cover_lookup;
 mod cover_storage;
+mod collation;
 mod db;
 mod mdb_import;
 mod sanitize;
@@ -10,9 +11,8 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 use tauri::{Emitter, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
@@ -74,7 +74,7 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
         .prepare(
             "SELECT rowid, artist, title, format, year, style, country, tracks, credits, edition, notes, cd_cover_path, lp_cover_path 
             FROM albums
-            ORDER BY artist, year, rowid
+            ORDER BY artist COLLATE SPANISH, year, rowid
             LIMIT 1 OFFSET ?",
         )
         .map_err(|e| e.to_string())?;
@@ -104,7 +104,7 @@ fn get_record_impl(conn: &Connection, offset: u32) -> Result<Record, String> {
 
 fn get_groups_and_titles_impl(conn: &Connection) -> Result<GroupsAndTitles, String> {
     let mut groups = Vec::new();
-    let mut stmt = conn.prepare("SELECT DISTINCT artist FROM albums WHERE artist IS NOT NULL AND artist != '' ORDER BY artist").map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT DISTINCT artist FROM albums WHERE artist IS NOT NULL AND artist != '' ORDER BY artist COLLATE SPANISH").map_err(|e| e.to_string())?;
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows.next().map_err(|e| e.to_string())? {
         if let Ok(g) = row.get::<_, String>(0) {
@@ -113,7 +113,7 @@ fn get_groups_and_titles_impl(conn: &Connection) -> Result<GroupsAndTitles, Stri
     }
 
     let mut titles = Vec::new();
-    let mut stmt2 = conn.prepare("SELECT DISTINCT title FROM albums WHERE title IS NOT NULL AND title != '' ORDER BY title").map_err(|e| e.to_string())?;
+    let mut stmt2 = conn.prepare("SELECT DISTINCT title FROM albums WHERE title IS NOT NULL AND title != '' ORDER BY title COLLATE SPANISH").map_err(|e| e.to_string())?;
     let mut rows2 = stmt2.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows2.next().map_err(|e| e.to_string())? {
         if let Ok(t) = row.get::<_, String>(0) {
@@ -122,7 +122,7 @@ fn get_groups_and_titles_impl(conn: &Connection) -> Result<GroupsAndTitles, Stri
     }
 
     let mut formatos = Vec::new();
-    let mut stmt3 = conn.prepare("SELECT DISTINCT format FROM albums WHERE format IS NOT NULL AND format != '' ORDER BY format").map_err(|e| e.to_string())?;
+    let mut stmt3 = conn.prepare("SELECT DISTINCT format FROM albums WHERE format IS NOT NULL AND format != '' ORDER BY format COLLATE SPANISH").map_err(|e| e.to_string())?;
     let mut rows3 = stmt3.query([]).map_err(|e| e.to_string())?;
     while let Some(row) = rows3.next().map_err(|e| e.to_string())? {
         if let Ok(f) = row.get::<_, String>(0) {
@@ -158,7 +158,7 @@ fn find_record_offset_impl(
                 ROW_NUMBER() OVER (
                     ORDER BY
                         (artist IS NULL OR artist = ''),
-                        artist,
+                        artist COLLATE SPANISH,
                         (year IS NULL),
                         year,
                         rowid
@@ -194,7 +194,7 @@ fn add_record_impl(conn: &Connection) -> Result<u32, String> {
             "WITH ordered AS (
                 SELECT rowid,
                        ROW_NUMBER() OVER (
-                           ORDER BY artist, year, rowid
+                           ORDER BY artist COLLATE SPANISH, year, rowid
                        ) - 1 AS offset
                 FROM albums
             )
@@ -628,7 +628,10 @@ pub fn run() {
     db::init_db_if_needed(&db_path).expect("Failed to initialize database");
     let cover_storage = CoverStorage::new(&db_path).expect("Failed to initialize cover storage");
 
-    let manager = SqliteConnectionManager::file(&db_path);
+    let manager = SqliteConnectionManager::file(&db_path).with_init(|conn| {
+        db::register_spanish_collation(conn)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))))
+    });
     let pool = Pool::new(manager).expect("Failed to create connection pool");
 
     let app_state = AppState {
@@ -768,6 +771,48 @@ mod tests {
         assert_eq!(second.year, Some("2005".to_string()));
         assert_eq!(third.artist, Some("ZZZ Group".to_string()));
         assert_eq!(third.year, Some("1990".to_string()));
+    }
+
+    #[test]
+    fn test_get_record_uses_spanish_collation_order() {
+        let conn = setup_test_db();
+        conn.execute(
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["Oscar", "One", "2000"],
+        )
+        .expect("Insert failed");
+        conn.execute(
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["Ñu", "Two", "2000"],
+        )
+        .expect("Insert failed");
+        conn.execute(
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["Nube", "Three", "2000"],
+        )
+        .expect("Insert failed");
+        conn.execute(
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["Abeja", "Four", "2000"],
+        )
+        .expect("Insert failed");
+        conn.execute(
+            "INSERT INTO albums (artist, title, year) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["Águila", "Five", "2000"],
+        )
+        .expect("Insert failed");
+
+        let first = get_record_impl(&conn, 0).expect("Get failed");
+        let second = get_record_impl(&conn, 1).expect("Get failed");
+        let third = get_record_impl(&conn, 2).expect("Get failed");
+        let fourth = get_record_impl(&conn, 3).expect("Get failed");
+        let fifth = get_record_impl(&conn, 4).expect("Get failed");
+
+        assert_eq!(first.artist, Some("Abeja".to_string()));
+        assert_eq!(second.artist, Some("Águila".to_string()));
+        assert_eq!(third.artist, Some("Nube".to_string()));
+        assert_eq!(fourth.artist, Some("Ñu".to_string()));
+        assert_eq!(fifth.artist, Some("Oscar".to_string()));
     }
 
     #[test]
