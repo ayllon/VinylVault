@@ -40,15 +40,7 @@ fn spanish_char_weight(ch: char) -> (u16, u32) {
         return (15, 'ñ' as u32);
     }
 
-    let mut base: Option<char> = None;
-    for part in ch.to_string().nfd() {
-        if !is_combining_mark(part) && base.is_none() {
-            base = Some(part);
-        }
-    }
-
-    let base = base.unwrap_or(ch);
-    let lower = base.to_lowercase().next().unwrap_or(base);
+    let lower = ch.to_lowercase().next().unwrap_or(ch);
     if let Some(primary) = spanish_primary_weight(lower) {
         return (primary, lower as u32);
     }
@@ -56,18 +48,55 @@ fn spanish_char_weight(ch: char) -> (u16, u32) {
     (1000, lower as u32)
 }
 
+fn spanish_sort_units(input: &str) -> Vec<char> {
+    let normalized: Vec<char> = input.nfd().collect();
+    let mut units = Vec::with_capacity(normalized.len());
+    let mut i = 0;
+
+    while i < normalized.len() {
+        let ch = normalized[i];
+        if is_combining_mark(ch) {
+            i += 1;
+            continue;
+        }
+
+        let mut j = i + 1;
+        let mut has_tilde = false;
+        while j < normalized.len() && is_combining_mark(normalized[j]) {
+            if normalized[j] == '\u{0303}' {
+                has_tilde = true;
+            }
+            j += 1;
+        }
+
+        if (ch == 'n' || ch == 'N') && has_tilde {
+            units.push('ñ');
+        } else {
+            units.push(ch);
+        }
+
+        i = j;
+    }
+
+    units
+}
+
 pub fn compare_spanish(lhs: &str, rhs: &str) -> Ordering {
-    let mut left = lhs.chars();
-    let mut right = rhs.chars();
+    let left = spanish_sort_units(lhs);
+    let right = spanish_sort_units(rhs);
+    let mut li = 0;
+    let mut ri = 0;
 
     loop {
-        match (left.next(), right.next()) {
+        match (left.get(li), right.get(ri)) {
             (Some(a), Some(b)) => {
-                let wa = spanish_char_weight(a);
-                let wb = spanish_char_weight(b);
+                let wa = spanish_char_weight(*a);
+                let wb = spanish_char_weight(*b);
                 if wa != wb {
                     return wa.cmp(&wb);
                 }
+                li += 1;
+                ri += 1;
             }
             (None, Some(_)) => return Ordering::Less,
             (Some(_), None) => return Ordering::Greater,
@@ -93,5 +122,11 @@ mod tests {
         assert_eq!(compare_spanish("á", "a"), Ordering::Equal);
         assert_eq!(compare_spanish("abeja", "águila"), Ordering::Less);
         assert_eq!(compare_spanish("águila", "azul"), Ordering::Less);
+    }
+
+    #[test]
+    fn spanish_order_is_normalization_invariant() {
+        assert_eq!(compare_spanish("a\u{301}", "á"), Ordering::Equal);
+        assert_eq!(compare_spanish("sen\u{0303}or", "señor"), Ordering::Equal);
     }
 }
