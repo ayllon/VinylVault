@@ -1,3 +1,4 @@
+mod archive;
 mod collation;
 mod cover_lookup;
 mod cover_storage;
@@ -565,6 +566,22 @@ async fn import_mdb(
     .map_err(|e| format!("Import task failed: {}", e))?
 }
 
+#[tauri::command]
+async fn create_archive() -> Result<String, String> {
+    let db_path = db::resolve_db_path()?;
+    let data_dir = db_path
+        .parent()
+        .ok_or("Invalid database path: no parent directory")?
+        .to_path_buf();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        archive::create_archive_with_date_suffix(&data_dir)
+            .map(|path| path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Archive task failed: {}", e))?
+}
+
 /// Import an MDB file into a deterministic temporary directory for parser debugging.
 ///
 /// The temporary directory is deleted before every run so stale DB or cover files
@@ -661,6 +678,7 @@ pub fn run() {
             is_db_empty,
             check_for_updates,
             import_mdb,
+            create_archive,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

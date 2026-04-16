@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import Select from "react-select";
 import type { Theme, StylesConfig } from "react-select";
 import { useTranslation } from "react-i18next";
@@ -24,6 +25,9 @@ interface NavigationBarProps {
   onOpenReleasePage: () => Promise<void> | void;
   onAdd: () => Promise<void> | void;
   onDelete: () => void;
+  onCreateArchive: () => Promise<void> | void;
+  isCreatingArchive: boolean;
+  activityText: string;
   showSearchControls?: boolean;
   showBottomBar?: boolean;
 }
@@ -49,10 +53,50 @@ function NavigationBar({
   onOpenReleasePage,
   onAdd,
   onDelete,
+  onCreateArchive,
+  isCreatingArchive,
+  activityText,
   showSearchControls = true,
   showBottomBar = true,
 }: Readonly<NavigationBarProps>) {
   const { t } = useTranslation();
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const advancedMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isAdvancedOpen) {
+      return;
+    }
+
+    const onGlobalClick = (event: MouseEvent) => {
+      if (!advancedMenuRef.current) {
+        return;
+      }
+
+      const target = event.target;
+      if (target instanceof Node && !advancedMenuRef.current.contains(target)) {
+        setIsAdvancedOpen(false);
+      }
+    };
+
+    const onGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsAdvancedOpen(false);
+      }
+    };
+
+    globalThis.addEventListener("mousedown", onGlobalClick);
+    globalThis.addEventListener("keydown", onGlobalKeyDown);
+    return () => {
+      globalThis.removeEventListener("mousedown", onGlobalClick);
+      globalThis.removeEventListener("keydown", onGlobalKeyDown);
+    };
+  }, [isAdvancedOpen]);
+
+  const handleCreateArchiveClick = async () => {
+    setIsAdvancedOpen(false);
+    await onCreateArchive();
+  };
 
   return (
     <>
@@ -169,7 +213,35 @@ function NavigationBar({
           ⏭
         </button>
 
+        <div className="nav-info-box" aria-live="polite" title={activityText}>
+          {activityText}
+        </div>
+
         <div className="nav-action-buttons">
+          <div className="advanced-menu" ref={advancedMenuRef}>
+            <button
+              type="button"
+              className="advanced-trigger"
+              onClick={() => setIsAdvancedOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={isAdvancedOpen}
+              aria-label={t("advanced.title")}
+            >
+              ⚙️
+            </button>
+            {isAdvancedOpen && (
+              <div className="advanced-dropdown" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleCreateArchiveClick}
+                  disabled={isCreatingArchive}
+                >
+                  {isCreatingArchive ? t("advanced.creating_archive") : t("advanced.create_archive")}
+                </button>
+              </div>
+            )}
+          </div>
           {updateInfo && (
             <button
               type="button"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -94,6 +94,17 @@ function App() {
 
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isCreatingArchive, setIsCreatingArchive] = useState(false);
+  const [activityText, setActivityText] = useState("");
+  const activityClearTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (activityClearTimeoutRef.current !== null) {
+        globalThis.clearTimeout(activityClearTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Check if DB is empty on mount
   useEffect(() => {
@@ -266,6 +277,35 @@ function App() {
     }
   }
 
+  async function handleCreateArchive() {
+    if (isCreatingArchive) {
+      return;
+    }
+
+    if (activityClearTimeoutRef.current !== null) {
+      globalThis.clearTimeout(activityClearTimeoutRef.current);
+      activityClearTimeoutRef.current = null;
+    }
+
+    setIsCreatingArchive(true);
+    setActivityText(t("activity.creating_archive"));
+    try {
+      const archivePath = await invoke<string>("create_archive");
+      setActivityText(t("activity.archive_created", { path: archivePath }));
+      activityClearTimeoutRef.current = globalThis.setTimeout(() => {
+        setActivityText("");
+        activityClearTimeoutRef.current = null;
+      }, 8000);
+      alert(t("advanced.archive_success", { path: archivePath }));
+    } catch (error) {
+      console.error("Failed to create archive:", error);
+      setActivityText(t("activity.archive_failed", { error }));
+      alert(t("advanced.archive_error", { error }));
+    } finally {
+      setIsCreatingArchive(false);
+    }
+  }
+
 
 
   if (isDbEmpty === null) {
@@ -330,6 +370,9 @@ function App() {
     onOpenReleasePage: handleOpenReleasePage,
     onAdd: handleAdd,
     onDelete: handleDelete,
+    onCreateArchive: handleCreateArchive,
+    isCreatingArchive,
+    activityText,
   };
 
   return (
