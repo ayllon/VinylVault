@@ -7,6 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 use zip::write::FileOptions;
 
+use crate::db;
+
 pub fn create_archive_with_date_suffix(data_dir: &Path, db_path: &Path) -> Result<PathBuf, String> {
     if !data_dir.exists() {
         return Err(format!(
@@ -102,6 +104,8 @@ fn make_db_snapshot_with_vacuum_into(db_path: &Path) -> Result<TempDbSnapshot, S
 
     let conn = Connection::open(db_path)
         .map_err(|e| format!("Failed to open database '{}': {}", db_path.display(), e))?;
+    db::register_spanish_collation(&conn)
+        .map_err(|e| format!("Failed to register SPANISH collation: {}", e))?;
 
     conn.execute(
         "VACUUM INTO ?1",
