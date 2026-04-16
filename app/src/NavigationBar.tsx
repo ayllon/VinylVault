@@ -223,17 +223,15 @@ function NavigationBar({
               type="button"
               className="advanced-trigger"
               onClick={() => setIsAdvancedOpen((open) => !open)}
-              aria-haspopup="menu"
               aria-expanded={isAdvancedOpen}
               aria-label={t("advanced.title")}
             >
               ⚙️
             </button>
             {isAdvancedOpen && (
-              <div className="advanced-dropdown" role="menu">
+              <div className="advanced-dropdown">
                 <button
                   type="button"
-                  role="menuitem"
                   onClick={handleCreateArchiveClick}
                   disabled={isCreatingArchive}
                 >

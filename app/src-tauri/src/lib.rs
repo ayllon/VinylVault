@@ -573,9 +573,10 @@ async fn create_archive() -> Result<String, String> {
         .parent()
         .ok_or("Invalid database path: no parent directory")?
         .to_path_buf();
+    let db_path_for_archive = db_path.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        archive::create_archive_with_date_suffix(&data_dir)
+        archive::create_archive_with_date_suffix(&data_dir, &db_path_for_archive)
             .map(|path| path.to_string_lossy().to_string())
     })
     .await
