@@ -44,10 +44,22 @@ pub fn create_archive_with_date_suffix(data_dir: &Path, db_path: &Path) -> Resul
             e
         )
     })?;
+    let canonical_db_path = fs::canonicalize(db_path).map_err(|e| {
+        format!(
+            "Failed to canonicalize database path '{}': {}",
+            db_path.display(),
+            e
+        )
+    })?;
     let archive_path = build_unique_archive_path(&source_dir, dir_name)?;
 
-    let db_snapshot = make_db_snapshot_with_vacuum_into(db_path)?;
-    create_zip_from_directory(&source_dir, &archive_path, db_path, db_snapshot.path())?;
+    let db_snapshot = make_db_snapshot_with_vacuum_into(&canonical_db_path)?;
+    create_zip_from_directory(
+        &source_dir,
+        &archive_path,
+        &canonical_db_path,
+        db_snapshot.path(),
+    )?;
 
     Ok(archive_path)
 }
