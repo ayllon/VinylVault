@@ -569,8 +569,16 @@ async fn import_mdb(
 #[tauri::command]
 async fn create_archive() -> Result<String, String> {
     let db_path = db::resolve_db_path()?;
+    if !db_path.is_absolute() {
+        return Err(
+            "Invalid database path: archive creation requires an absolute database path"
+                .to_string(),
+        );
+    }
+
     let data_dir = db_path
         .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
         .ok_or("Invalid database path: no parent directory")?
         .to_path_buf();
     let db_path_for_archive = db_path.clone();
