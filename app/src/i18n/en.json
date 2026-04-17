@@ -98,5 +98,20 @@
     "tooltip": "Update available: {{version}}",
     "aria_label": "Open GitHub release {{version}}",
     "title": "A newer version is available"
+  },
+
+  "advanced": {
+    "title": "Advanced",
+    "create_archive": "Create archive",
+    "creating_archive": "Creating archive...",
+    "archive_success": "Archive created successfully: {{path}}",
+    "archive_error": "Error creating archive: {{error}}"
+  },
+
+  "activity": {
+    "ready": "Ready",
+    "creating_archive": "Creating backup archive...",
+    "archive_created": "Archive created: {{path}}",
+    "archive_failed": "Could not create archive: {{error}}"
   }
 }

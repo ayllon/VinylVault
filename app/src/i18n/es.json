@@ -98,5 +98,20 @@
     "tooltip": "Actualización disponible: {{version}}",
     "aria_label": "Abrir la versión {{version}} en GitHub",
     "title": "Hay una versión más reciente disponible"
+  },
+
+  "advanced": {
+    "title": "Avanzado",
+    "create_archive": "Crear archivo",
+    "creating_archive": "Creando archivo...",
+    "archive_success": "Archivo creado correctamente: {{path}}",
+    "archive_error": "Error al crear archivo: {{error}}"
+  },
+
+  "activity": {
+    "ready": "Listo",
+    "creating_archive": "Creando archivo de respaldo...",
+    "archive_created": "Archivo creado: {{path}}",
+    "archive_failed": "No se pudo crear el archivo: {{error}}"
   }
 }
