@@ -299,8 +299,10 @@ function App() {
       alert(t("advanced.archive_success", { path: archivePath }));
     } catch (error) {
       console.error("Failed to create archive:", error);
-      setActivityText(t("activity.archive_failed", { error }));
-      alert(t("advanced.archive_error", { error }));
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      setActivityText(t("activity.archive_failed", { error: errorMessage }));
+      alert(t("advanced.archive_error", { error: errorMessage }));
     } finally {
       setIsCreatingArchive(false);
     }
